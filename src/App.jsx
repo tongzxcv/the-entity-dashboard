@@ -1366,6 +1366,33 @@ function RiskDeskPage({ accounts, snapshots }) {
 }
 
 // โ”€โ”€ PAGES โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function ResponsiveSymbolRows({ symbols }) {
+  if (symbols.length === 0) {
+    return <Card className="responsive-empty-card symbol-mobile-row">No symbol exposure.</Card>
+  }
+  return (
+    <div className="responsive-row-list">
+      {symbols.map((symbol) => (
+        <Card className="responsive-row-card symbol-mobile-row" key={`mobile-${symbol.symbol}`}>
+          <CardHeader className="responsive-row-head p-0">
+            <div>
+              <CardTitle className="responsive-row-title">{symbol.symbol}</CardTitle>
+              <CardDescription className="responsive-row-sub">{symbol.accounts} accounts / {symbol.trades} trades</CardDescription>
+            </div>
+            <Badge variant="secondary" className="mini-tag">{symbol.category}</Badge>
+          </CardHeader>
+          <CardContent className="responsive-row-body p-0">
+            <div><span>Lots</span><b className="symbol-number">{symbol.lots.toFixed(2)}</b></div>
+            <div><span>Buy / Sell</span><b className="symbol-number">{symbol.buy} / {symbol.sell}</b></div>
+            <div><span>Floating</span><b className="symbol-money" style={{ color:pclr(symbol.profit) }}>{fmtS(symbol.profit)}</b></div>
+            <div><span>Category</span><b>{symbol.category}</b></div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 function ResponsiveTradeRows({ trades, isAdmin }) {
   if (trades.length === 0) {
     return <Card className="responsive-empty-card">No open trades right now.</Card>
@@ -2439,40 +2466,40 @@ function SymbolsPage({ symbols }) {
   const maxLots = Math.max(1, ...visibleSymbols.map((symbol) => Math.abs(symbol.lots)))
   return (
     <>
-      <div className="history-summary">
-        <div className="stat"><div className="sl">Open Symbols</div><div className="sv a">{visibleSymbols.length}</div><div className="ss">{category === 'all' ? 'all categories' : category}</div></div>
-        <div className="stat"><div className="sl">Open Trades</div><div className="sv">{summary.trades}</div><div className="ss">symbol exposure</div></div>
-        <div className="stat"><div className="sl">Total Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">combined volume</div></div>
-        <div className="stat"><div className="sl">Floating P&L</div><div className={`sv ${summary.profit >= 0 ? 'g' : 'r'}`}>{fmtS(summary.profit)}</div><div className="ss">unrealized</div></div>
+      <div className="history-summary symbols-summary">
+        <MetricCard label="Open Symbols" value={visibleSymbols.length} tone="a" bar={C.acc} meta={category === 'all' ? 'all categories' : category} />
+        <MetricCard label="Open Trades" value={summary.trades} bar={C.blu} meta="symbol exposure" />
+        <MetricCard label="Total Lots" value={summary.lots.toFixed(2)} bar={C.yel} meta="combined volume" />
+        <MetricCard label="Floating P&L" value={fmtS(summary.profit)} tone={summary.profit >= 0 ? 'g' : 'r'} bar={summary.profit >= 0 ? C.grn : C.red} meta="unrealized" />
       </div>
-      <div className="sec">
-        <div className="sec-h">
+      <Card className="sec">
+        <CardHeader className="sec-h symbol-section-head p-0">
           <div><div className="sec-lbl">Symbol Performance Analysis</div><div className="sec-title">Lots, direction, and floating exposure</div></div>
           <div className="ftabs">
-            <button className={`ftab${category === 'all' ? ' on' : ''}`} onClick={() => setCategory('all')}>All <span className="fcnt">{symbols.length}</span></button>
+            <Button variant="ghost" className={`ftab${category === 'all' ? ' on' : ''}`} onClick={() => setCategory('all')}>All <span className="fcnt">{symbols.length}</span></Button>
             {categories.map((item) => (
-              <button key={item} className={`ftab${category === item ? ' on' : ''}`} onClick={() => setCategory(item)}>
+              <Button key={item} variant="ghost" className={`ftab${category === item ? ' on' : ''}`} onClick={() => setCategory(item)}>
                 {item} <span className="fcnt">{symbols.filter((symbol) => symbol.category === item).length}</span>
-              </button>
+              </Button>
             ))}
           </div>
-        </div>
-        <div className="symbol-grid">
+        </CardHeader>
+        <CardContent className="symbol-grid p-0">
           {visibleSymbols.length === 0 ? <div style={{color:C.t3, fontSize:13}}>No open exposure.</div> : visibleSymbols.map(sym => (
-            <div className="symcard" key={sym.symbol}>
-              <div className="symrow">
-                <span className="symname">{sym.symbol}</span>
-                <span className="mini-tag">{sym.category}</span>
-              </div>
+            <Card className="symcard" key={sym.symbol}>
+              <CardHeader className="symrow p-0">
+                <CardTitle className="symname">{sym.symbol}</CardTitle>
+                <Badge variant="secondary" className="mini-tag">{sym.category}</Badge>
+              </CardHeader>
               <div className="symgrid">
                 {[
-                  ["Open Trades", sym.trades,  C.t1,  "across all EAs"],
-                  ["Total Lots",  sym.lots.toFixed(2), C.acc,  "combined exposure"],
-                  ["Floating P&L",fmtS(sym.profit), pclr(sym.profit), "unrealized"],
-                ].map(([l,v,clr,sub]) => (
+                  ["Open Trades", sym.trades,  C.t1,  "across all EAs", "symbol-number"],
+                  ["Total Lots",  sym.lots.toFixed(2), C.acc,  "combined exposure", "symbol-number"],
+                  ["Floating P&L",fmtS(sym.profit), pclr(sym.profit), "unrealized", "symbol-money"],
+                ].map(([l,v,clr,sub,cls]) => (
                   <div key={l}>
                     <div className="sl" style={{ marginBottom:6 }}>{l}</div>
-                    <div className="symval" style={{ color:clr }}>{v}</div>
+                    <div className={`symval ${cls}`} style={{ color:clr }}>{v}</div>
                     <div style={{ fontSize:10, color:C.t3, marginTop:4 }}>{sub}</div>
                   </div>
                 ))}
@@ -2486,34 +2513,45 @@ function SymbolsPage({ symbols }) {
                 <span>SELL {sym.sell}</span>
                 <span>{sym.accounts} accounts</span>
               </div>
-            </div>
+            </Card>
           ))}
-        </div>
-      </div>
-      <div className="sec">
-        <div className="sec-h">
-          <div><div className="sec-lbl">Exposure Table</div><div className="sec-title">Ranked by lots</div></div>
-          <span className="chip cd">{visibleSymbols.length} rows</span>
-        </div>
-        <div style={{overflowX:'auto'}}>
-          <table className="tbl">
-            <thead><tr><th>Symbol</th><th>Category</th><th>Trades</th><th>Lots</th><th>Buy / Sell</th><th>Accounts</th><th>Floating</th></tr></thead>
-            <tbody>
-              {visibleSymbols.length === 0 ? <tr><td colSpan="7" style={{ textAlign:'center', color:C.t3, padding:20 }}>No symbol exposure.</td></tr> : visibleSymbols.map((symbol) => (
-                <tr key={`row-${symbol.symbol}`}>
-                  <td data-label="Symbol" className="tn">{symbol.symbol}</td>
-                  <td data-label="Category"><span className="mini-tag">{symbol.category}</span></td>
-                  <td data-label="Trades" className="tm">{symbol.trades}</td>
-                  <td data-label="Lots" className="tm">{symbol.lots.toFixed(2)}</td>
-                  <td data-label="Buy / Sell" className="tm">{symbol.buy} / {symbol.sell}</td>
-                  <td data-label="Accounts" className="tm">{symbol.accounts}</td>
-                  <td data-label="Floating" className="tm" style={{ color:pclr(symbol.profit), fontWeight:600 }}>{fmtS(symbol.profit)}</td>
-                </tr>
+        </CardContent>
+      </Card>
+      <DataTableShell
+        className="symbols-table"
+        kicker="Exposure Table"
+        title="Ranked by lots"
+        actions={<Badge variant="secondary" className="chip cd">{visibleSymbols.length} rows</Badge>}
+        table={(
+          <Table className="tbl">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Symbol</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Trades</TableHead>
+                <TableHead>Lots</TableHead>
+                <TableHead>Buy / Sell</TableHead>
+                <TableHead>Accounts</TableHead>
+                <TableHead>Floating</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleSymbols.length === 0 ? <TableRow><TableCell colSpan="7" className="empty-table-cell">No symbol exposure.</TableCell></TableRow> : visibleSymbols.map((symbol) => (
+                <TableRow key={`row-${symbol.symbol}`}>
+                  <TableCell data-label="Symbol" className="tn">{symbol.symbol}</TableCell>
+                  <TableCell data-label="Category"><Badge variant="secondary" className="mini-tag">{symbol.category}</Badge></TableCell>
+                  <TableCell data-label="Trades" className="tm symbol-number">{symbol.trades}</TableCell>
+                  <TableCell data-label="Lots" className="tm symbol-number">{symbol.lots.toFixed(2)}</TableCell>
+                  <TableCell data-label="Buy / Sell" className="tm symbol-number">{symbol.buy} / {symbol.sell}</TableCell>
+                  <TableCell data-label="Accounts" className="tm symbol-number">{symbol.accounts}</TableCell>
+                  <TableCell data-label="Floating" className="tm symbol-money" style={{ color:pclr(symbol.profit), fontWeight:600 }}>{fmtS(symbol.profit)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        )}
+        mobileRows={<ResponsiveSymbolRows symbols={visibleSymbols} />}
+      />
     </>
   )
 }
@@ -2689,25 +2727,26 @@ function MT5TerminalCard({ account, state, expanded, onToggle }) {
   const closedLots = accountClosedLots(account)
   const marginColor = state.ml !== null && state.ml < 500 ? C.yel : C.t1
   return (
-    <div className={`terminal-card ${state.tone}${expanded ? ' open' : ''}`}>
-      <button className="terminal-shell" type="button" onClick={onToggle}>
-        <div className="terminal-top">
+    <Card className={`terminal-card ${state.tone}${expanded ? ' open' : ''}`}>
+      <Button className="terminal-shell" variant="ghost" type="button" onClick={onToggle}>
+        <CardHeader className="terminal-top p-0">
           <div className={`broker-logo mini ${meta.tone}`}>{meta.asset ? <img src={meta.asset} alt={`${meta.label} logo`} /> : meta.logo}</div>
           <div className="terminal-title">
             <strong>{accountLabel(account)}</strong>
             <span>{maskAccountNumber(account.account_number)}</span>
           </div>
-          <span className={`terminal-live ${state.active ? 'on' : 'off'}`}>{state.active ? 'Live' : 'Idle'}</span>
-        </div>
+          <Badge className={`terminal-live ${state.active ? 'on' : 'off'}`}>{state.active ? 'Live' : 'Idle'}</Badge>
+        </CardHeader>
         <div className="terminal-meta">{meta.label}</div>
         <div className="terminal-tags">
-          <span>{state.profile.strategy}</span>
-          <span className={state.profile.level}>{state.profile.risk}</span>
+          <Badge variant="secondary" className="terminal-tag">{state.profile.strategy}</Badge>
+          <Badge variant="outline" className={`terminal-tag ${state.profile.level}`}>{state.profile.risk}</Badge>
         </div>
+        <CardContent className="terminal-body p-0">
         <div className="terminal-balance">
           <span>Equity</span>
-          <b>{fmtM(account.equity)}</b>
-          <em style={{ color:pclr(state.floating) }}>{fmtS(state.floating)}</em>
+          <b className="symbol-money">{fmtM(account.equity)}</b>
+          <em className="symbol-money" style={{ color:pclr(state.floating) }}>{fmtS(state.floating)}</em>
         </div>
         <div className="terminal-grid">
           <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
@@ -2723,9 +2762,10 @@ function MT5TerminalCard({ account, state, expanded, onToggle }) {
           <span>{age.detail}</span>
           <b>{expanded ? 'Hide positions' : 'View terminal'}</b>
         </div>
-      </button>
+        </CardContent>
+      </Button>
       {expanded ? (
-        <div className="terminal-positions">
+        <CardContent className="terminal-positions p-0">
           {state.trades.length === 0 ? (
             <div className="empty-note">No open positions on this account.</div>
           ) : state.trades.slice(0, 14).map((trade) => (
@@ -2736,9 +2776,9 @@ function MT5TerminalCard({ account, state, expanded, onToggle }) {
               <strong style={{ color:pclr(trade.profit) }}>{fmtS(trade.profit)}</strong>
             </div>
           ))}
-        </div>
+        </CardContent>
       ) : null}
-    </div>
+    </Card>
   )
 }
 
@@ -2794,47 +2834,57 @@ function MT5PreviewPage({ accounts, snapshots = [], lastUpdate = null }) {
         <div className="stat"><div className="sl">Positions / Lots</div><div className="sv a">{totalPositions} / {totalLots.toFixed(2)}</div><div className="ss">MT5 exposure</div></div>
         <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
       </div>
-      <div className="sec">
-        <div className="sec-h">
+      <Card className="sec mt5-preview-shell">
+        <CardHeader className="sec-h p-0">
           <div>
             <div className="sec-lbl">MT5 Preview</div>
-            <div className="sec-title">Grouped terminal board</div>
-            <div className="sec-sub">Compact MT5-style snapshots grouped by risk and live exposure.</div>
+            <CardTitle className="sec-title">Grouped terminal board</CardTitle>
+            <CardDescription className="sec-sub">Compact MT5-style snapshots grouped by risk and live exposure.</CardDescription>
           </div>
           <div className="trade-filters">
-            <select className="fctl" value={filter} onChange={(event) => setFilter(event.target.value)}>
-              <option value="all">All ({accounts.length})</option>
-              <option value="danger">Danger ({dangerCount})</option>
-              <option value="active">Active</option>
-              <option value="idle">Idle</option>
-              <option value="usd">USD</option>
-              <option value="usc">USC</option>
-            </select>
-            <select className="fctl wide" value={sort} onChange={(event) => setSort(event.target.value)}>
-              <option value="floating-desc">P&L high to low</option>
-              <option value="pnl-asc">P&L low to high</option>
-              <option value="dd-desc">Current DD high to low</option>
-              <option value="margin-asc">Margin level watch</option>
-              <option value="positions-desc">Positions high to low</option>
-              <option value="name">Name</option>
-            </select>
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="fctl"><SelectValue placeholder="All" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All ({accounts.length})</SelectItem>
+                  <SelectItem value="danger">Danger ({dangerCount})</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="idle">Idle</SelectItem>
+                  <SelectItem value="usd">USD</SelectItem>
+                  <SelectItem value="usc">USC</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={sort} onValueChange={setSort}>
+              <SelectTrigger className="fctl wide"><SelectValue placeholder="P&L high to low" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="floating-desc">P&L high to low</SelectItem>
+                  <SelectItem value="pnl-asc">P&L low to high</SelectItem>
+                  <SelectItem value="dd-desc">Current DD high to low</SelectItem>
+                  <SelectItem value="margin-asc">Margin level watch</SelectItem>
+                  <SelectItem value="positions-desc">Positions high to low</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </CardHeader>
         <div className="mt5-board">
           {grouped.length === 0 ? <div className="empty-note">No account matches this preview filter.</div> : grouped.map((group) => (
-            <section className={`mt5-group ${group.tone}`} key={group.key}>
-              <div className="mt5-group-head">
+            <Card className={`mt5-group ${group.tone}`} key={group.key}>
+              <CardHeader className="mt5-group-head p-0">
                 <div>
                   <div className="mt5-group-kicker">{group.note}</div>
-                  <h3>{group.label}</h3>
+                  <CardTitle>{group.label}</CardTitle>
                 </div>
                 <div className="mt5-group-stats">
-                  <span>{group.items.length} accounts</span>
+                  <Badge className={`mt5-group-status ${group.tone}`}>{group.items.length} accounts</Badge>
                   <b style={{ color:pclr(group.floating) }}>{fmtS(group.floating)}</b>
                   <em>{group.positions} positions / {group.lots.toFixed(2)} lots / current DD {formatPercent(group.currentDd)}</em>
                 </div>
-              </div>
-              <div className="terminal-grid-board">
+              </CardHeader>
+              <CardContent className="terminal-grid-board p-0">
                 {group.items.map(({ account, state }) => {
                   const isOpen = expanded === account.account_number
                   return (
@@ -2847,11 +2897,11 @@ function MT5PreviewPage({ accounts, snapshots = [], lastUpdate = null }) {
                     />
                   )
                 })}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
           ))}
         </div>
-      </div>
+      </Card>
     </>
   )
 }
