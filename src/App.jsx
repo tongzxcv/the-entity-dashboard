@@ -3,6 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip } from "recha
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -802,35 +803,38 @@ function ChartTooltip({ active, payload }) {
 function AccountNameDialog({ account, value, onChange, onCancel, onSave, saving }) {
   if (!account) return null
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <form className="name-dialog sec" style={{ width: 400, maxWidth: '90%', margin: 'auto', background: C.bg1 }} onSubmit={onSave} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sec-h">
-          <div>
-            <div className="sec-lbl">Account Label</div>
-            <div className="sec-title">{maskAccountNumber(account.account_number)}</div>
+    <Dialog open={Boolean(account)} onOpenChange={(open) => { if (!open) onCancel() }}>
+      <DialogContent className="name-dialog sec p-0">
+        <form onSubmit={onSave}>
+          <DialogHeader className="sec-h">
+            <div>
+              <div className="sec-lbl">Account Label</div>
+              <DialogTitle className="sec-title">{maskAccountNumber(account.account_number)}</DialogTitle>
+            </div>
+            <Badge variant="secondary" className="chip cd">{account.broker || 'Broker unknown'}</Badge>
+          </DialogHeader>
+          <DialogDescription className="sr-only">Rename the account display label.</DialogDescription>
+          <div style={{ padding: 20 }}>
+            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, color: C.t3, fontFamily: C.fb }}>
+              Display name
+              <Input
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                placeholder="e.g., Manual Gold, EA Scalper 01"
+                autoFocus
+                maxLength={80}
+                className="name-dialog-input"
+              />
+            </label>
+            <div style={{ fontSize: 11, color: C.t3, marginBottom: 20 }}>Leave blank to revert to masked account number.</div>
+            <DialogFooter className="dialog-actions">
+              <Button className="brtab" variant="ghost" onClick={onCancel} type="button">Cancel</Button>
+              <Button className="btn b-acc" disabled={saving} type="submit">{saving ? 'Saving...' : 'Save name'}</Button>
+            </DialogFooter>
           </div>
-          <span className="chip cd">{account.broker || 'Broker unknown'}</span>
-        </div>
-        <div style={{ padding: 20 }}>
-          <label style={{ display: 'block', marginBottom: 12, fontSize: 12, color: C.t3, fontFamily: C.fb }}>
-            Display name
-            <input 
-              value={value} 
-              onChange={(event) => onChange(event.target.value)} 
-              placeholder="e.g., Manual Gold, EA Scalper 01" 
-              autoFocus 
-              maxLength={80} 
-              style={{ width: '100%', marginTop: 8, padding: '10px 12px', background: C.bg2, border: `1px solid ${C.br0}`, color: C.t1, borderRadius: 6, fontFamily: C.fn }}
-            />
-          </label>
-          <div style={{ fontSize: 11, color: C.t3, marginBottom: 20 }}>Leave blank to revert to masked account number.</div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button className="brtab" onClick={onCancel} type="button">Cancel</button>
-            <button className="btn b-acc" disabled={saving} type="submit">{saving ? 'Saving...' : 'Save name'}</button>
-          </div>
-        </div>
-      </form>
-    </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -983,44 +987,47 @@ function DeleteAccountDialog({ account, confirmation, onConfirmationChange, onCa
   if (!account) return null
   const canDelete = confirmation === 'DELETE' && !deleting
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <form className="delete-dialog sec" onSubmit={onDelete} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sec-h">
-          <div>
-            <div className="sec-lbl">Permanent Portfolio Removal</div>
-            <div className="sec-title">Delete {accountLabel(account)}?</div>
+    <Dialog open={Boolean(account)} onOpenChange={(open) => { if (!open) onCancel() }}>
+      <DialogContent className="delete-dialog sec p-0">
+        <form onSubmit={onDelete}>
+          <DialogHeader className="sec-h">
+            <div>
+              <div className="sec-lbl">Permanent Portfolio Removal</div>
+              <DialogTitle className="sec-title">Delete {accountLabel(account)}?</DialogTitle>
+            </div>
+            <span className="delete-dialog-icon">{Ico.trash}</span>
+          </DialogHeader>
+          <DialogDescription className="sr-only">Confirm permanent portfolio removal.</DialogDescription>
+          <div className="delete-dialog-body">
+            <div className="delete-warning">
+              <strong>Disable the MT5 Reporter for this account first.</strong>
+              <span>If it remains active, the portfolio will return on the next reporter update.</span>
+            </div>
+            <div className="delete-account-summary">
+              <span>{maskAccountNumber(account.account_number)}</span>
+              <span>{account.broker || 'Unknown broker'}</span>
+            </div>
+            <p>This removes the account, open trades, daily history, and equity snapshots from the dashboard. A server-side backup is created automatically before deletion.</p>
+            <label className="delete-confirm-field">
+              Type <b>DELETE</b> to confirm
+              <Input
+                value={confirmation}
+                onChange={(event) => onConfirmationChange(event.target.value)}
+                placeholder="DELETE"
+                autoFocus
+                autoComplete="off"
+              />
+            </label>
+            <DialogFooter className="delete-dialog-actions">
+              <Button className="brtab" variant="ghost" onClick={onCancel} disabled={deleting} type="button">Cancel</Button>
+              <Button className="btn b-danger" disabled={!canDelete} type="submit">
+                {Ico.trash} {deleting ? 'Deleting...' : 'Delete portfolio'}
+              </Button>
+            </DialogFooter>
           </div>
-          <span className="delete-dialog-icon">{Ico.trash}</span>
-        </div>
-        <div className="delete-dialog-body">
-          <div className="delete-warning">
-            <strong>Disable the MT5 Reporter for this account first.</strong>
-            <span>If it remains active, the portfolio will return on the next reporter update.</span>
-          </div>
-          <div className="delete-account-summary">
-            <span>{maskAccountNumber(account.account_number)}</span>
-            <span>{account.broker || 'Unknown broker'}</span>
-          </div>
-          <p>This removes the account, open trades, daily history, and equity snapshots from the dashboard. A server-side backup is created automatically before deletion.</p>
-          <label className="delete-confirm-field">
-            Type <b>DELETE</b> to confirm
-            <input
-              value={confirmation}
-              onChange={(event) => onConfirmationChange(event.target.value)}
-              placeholder="DELETE"
-              autoFocus
-              autoComplete="off"
-            />
-          </label>
-          <div className="delete-dialog-actions">
-            <button className="brtab" onClick={onCancel} disabled={deleting} type="button">Cancel</button>
-            <button className="btn b-danger" disabled={!canDelete} type="submit">
-              {Ico.trash} {deleting ? 'Deleting...' : 'Delete portfolio'}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -2063,6 +2070,10 @@ function PeriodCard({ label, stats, balance }) {
   )
 }
 
+function StatusBadge({ age }) {
+  return <Badge className={`badge ${age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{age.label}</Badge>
+}
+
 function AccountDrilldown({ account, snapshots = [] }) {
   if (!account) return null
   const stats = buildAccountPeriodStats(account)
@@ -2075,58 +2086,60 @@ function AccountDrilldown({ account, snapshots = [] }) {
   const closedLots = accountClosedLots(account)
   const recentDays = (account.daily_history || []).slice(0, 7)
   return (
-    <div className="ea-detail" id="ea-detail">
-      <div className="ea-detail-head">
+    <Card className="ea-detail" id="ea-detail">
+      <CardHeader className="ea-detail-head p-0">
         <div>
           <div className="sec-lbl">Selected Expert Advisor</div>
-          <div className="ea-detail-title">{accountLabel(account)}</div>
-          <div className="ea-detail-sub">{maskAccountNumber(account.account_number)} | {account.broker || 'Unknown broker'}</div>
+          <CardTitle className="ea-detail-title">{accountLabel(account)}</CardTitle>
+          <CardDescription className="ea-detail-sub">{maskAccountNumber(account.account_number)} | {account.broker || 'Unknown broker'}</CardDescription>
           <div className="tag-row">
-            <span className="mini-tag">{profile.strategy}</span>
-            <span className={`mini-tag risk-${profile.level}`}>{profile.risk}</span>
+            <Badge variant="secondary" className="mini-tag">{profile.strategy}</Badge>
+            <Badge variant="outline" className={`mini-tag risk-${profile.level}`}>{profile.risk}</Badge>
           </div>
         </div>
         <div className="ea-detail-dd">
           <span>Peak DD</span>
           <strong>{formatPercent(accountMaxDrawdown(account, snapshots))}</strong>
         </div>
-      </div>
-      <div className="ea-detail-grid">
-        <div className="ea-equity-card">
-          <div className="detail-stat-row">
-            <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
-            <div><span>Equity</span><b>{fmtM(account.equity)}</b></div>
-            <div><span>Floating</span><b style={{ color:pclr(floating) }}>{fmtS(floating)}</b></div>
-            <div><span>Total Closed P&L</span><b style={{ color:pclr(closedProfit) }}>{fmtS(closedProfit)}</b></div>
-          </div>
-          <MiniLineChart points={equityPoints} />
-          <div className="detail-risk-row">
-            <div><span>Open Trades</span><b>{openTrades}</b></div>
-            <div><span>Open Lots</span><b>{openLots.toFixed(2)}</b></div>
-            <div><span>Closed Lots</span><b>{fmtLots(closedLots)}</b></div>
-            <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
-          </div>
-        </div>
-        <div className="period-grid">
-          <PeriodCard label={`${reportingDayLabel(stats.today.reportingDate)} Profit / Loss`} stats={stats.today} balance={account.balance} />
-          <PeriodCard label="Weekly Profit / Loss" stats={stats.week} balance={account.balance} />
-          <PeriodCard label="Monthly Profit / Loss" stats={stats.month} balance={account.balance} />
-        </div>
-      </div>
-      <div className="detail-history">
-        <div className="sec-lbl">Recent Daily Performance</div>
-        <div className="detail-history-list">
-          {recentDays.length === 0 ? <div className="empty-note">No daily history for this EA yet.</div> : recentDays.map((row) => (
-            <div className="detail-day" key={`${account.account_number}-${row.date}`}>
-              <span>{row.date}</span>
-              <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
-              <em>{Number(row.daily_trades || 0)} closed deals</em>
-              <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
+      </CardHeader>
+      <CardContent className="ea-detail-body p-0">
+        <div className="ea-detail-grid">
+          <div className="ea-equity-card">
+            <div className="detail-stat-row">
+              <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
+              <div><span>Equity</span><b>{fmtM(account.equity)}</b></div>
+              <div><span>Floating</span><b style={{ color:pclr(floating) }}>{fmtS(floating)}</b></div>
+              <div><span>Total Closed P&L</span><b style={{ color:pclr(closedProfit) }}>{fmtS(closedProfit)}</b></div>
             </div>
-          ))}
+            <MiniLineChart points={equityPoints} />
+            <div className="detail-risk-row">
+              <div><span>Open Trades</span><b>{openTrades}</b></div>
+              <div><span>Open Lots</span><b>{openLots.toFixed(2)}</b></div>
+              <div><span>Closed Lots</span><b>{fmtLots(closedLots)}</b></div>
+              <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
+            </div>
+          </div>
+          <div className="period-grid">
+            <PeriodCard label={`${reportingDayLabel(stats.today.reportingDate)} Profit / Loss`} stats={stats.today} balance={account.balance} />
+            <PeriodCard label="Weekly Profit / Loss" stats={stats.week} balance={account.balance} />
+            <PeriodCard label="Monthly Profit / Loss" stats={stats.month} balance={account.balance} />
+          </div>
         </div>
-      </div>
-    </div>
+        <div className="detail-history">
+          <div className="sec-lbl">Recent Daily Performance</div>
+          <div className="detail-history-list">
+            {recentDays.length === 0 ? <div className="empty-note">No daily history for this EA yet.</div> : recentDays.map((row) => (
+              <div className="detail-day" key={`${account.account_number}-${row.date}`}>
+                <span>{row.date}</span>
+                <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
+                <em>{Number(row.daily_trades || 0)} closed deals</em>
+                <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -2161,6 +2174,43 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
       document.getElementById('ea-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 30)
   }
+  const renderAdminActions = (ea) => {
+    if (!isAdmin) return null
+    return (
+      <TooltipProvider delayDuration={150}>
+        <span className="ea-admin-actions">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={`Edit ${accountLabel(ea)} name`}
+                className="advisor-icon-button"
+                variant="ghost"
+                size="icon"
+                onClick={(event) => { event.stopPropagation(); onEditName(ea) }}
+              >
+                {Ico.edit}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit display name</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={`Delete ${accountLabel(ea)} portfolio`}
+                className="advisor-icon-button danger"
+                variant="ghost"
+                size="icon"
+                onClick={(event) => { event.stopPropagation(); onDeleteAccount(ea) }}
+              >
+                {Ico.trash}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete portfolio</TooltipContent>
+          </Tooltip>
+        </span>
+      </TooltipProvider>
+    )
+  }
 
   return (
     <>
@@ -2177,29 +2227,28 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
           const profile = inferEaProfile(ea, snapshots)
           
           return (
-            <div className={`eac ${isSelected ? 'selected' : ''}`} key={ea.account_number} onClick={() => selectAccount(ea.account_number)}>
+            <Card
+              className={cn('eac', isSelected && 'selected')}
+              key={ea.account_number}
+              onClick={() => selectAccount(ea.account_number)}
+            >
               <div className="eatop" style={{ background: profile.level === 'high' ? C.red : profile.level === 'medium' ? C.yel : floating >= 0 ? C.grn : C.blu }} />
-              <div className="each">
+              <CardHeader className="each p-0">
                 <div style={{minWidth:0, paddingRight:10}}>
                   <div className="eaname" style={{display:'flex', alignItems:'center', gap:6}}>
                     <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{accountLabel(ea)}</span>
-                    {isAdmin && (
-                      <span className="ea-admin-actions">
-                        <button aria-label={`Edit ${accountLabel(ea)} name`} title="Edit display name" onClick={(event) => { event.stopPropagation(); onEditName(ea) }}>{Ico.edit}</button>
-                        <button className="danger" aria-label={`Delete ${accountLabel(ea)} portfolio`} title="Delete portfolio" onClick={(event) => { event.stopPropagation(); onDeleteAccount(ea) }}>{Ico.trash}</button>
-                      </span>
-                    )}
+                    {renderAdminActions(ea)}
                   </div>
                   <div className="eaacct">{maskAccountNumber(ea.account_number)}</div>
                   <div className="eabkr">{ea.broker || 'Unknown broker'}</div>
                   <div className="tag-row">
-                    <span className="mini-tag">{profile.strategy}</span>
-                    <span className={`mini-tag risk-${profile.level}`}>{profile.risk}</span>
+                    <Badge variant="secondary" className="mini-tag">{profile.strategy}</Badge>
+                    <Badge variant="outline" className={`mini-tag risk-${profile.level}`}>{profile.risk}</Badge>
                   </div>
                 </div>
-                <span className={`badge ${age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{age.label}</span>
-              </div>
-              <div className="eakg">
+                <StatusBadge age={age} />
+              </CardHeader>
+              <CardContent className="eakg p-0">
                 {[
                   ["Balance",   fmtM(ea.balance),  ""],
                   ["Equity",    fmtM(ea.equity),   ""],
@@ -2215,8 +2264,8 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                     <div className={`eakv${c?" "+c:""}`}>{v}</div>
                   </div>
                 ))}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )
         })}
       </div>
@@ -2254,7 +2303,24 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                     <td data-label="Name" className="tn">
                       <div style={{display:'flex', alignItems:'center', gap:6}}>
                         {accountLabel(ea)}
-                        {isAdmin && <button onClick={(event) => { event.stopPropagation(); onEditName(ea) }} style={{background:'transparent',border:'none',color:C.t3,cursor:'pointer'}}>{Ico.edit}</button>}
+                        {isAdmin && (
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  aria-label={`Edit ${accountLabel(ea)} name`}
+                                  className="advisor-icon-button table-edit"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(event) => { event.stopPropagation(); onEditName(ea) }}
+                                >
+                                  {Ico.edit}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit display name</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
                     </td>
                     <td data-label="Account" className="tm">{maskAccountNumber(ea.account_number)}</td>
@@ -2264,7 +2330,7 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                     <td data-label="Floating" className="tm" style={{color:pclr(floating)}}>{fmtS(floating)}</td>
                     <td data-label="Peak DD" className="tm" style={{color:C.yel}}>{formatPercent(maxDrawdown)}</td>
                     <td data-label="Closed Lots" className="tm">{fmtLots(accountClosedLots(ea))}</td>
-                    <td data-label="Status"><span className={`badge ${age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{age.label}</span></td>
+                    <td data-label="Status"><StatusBadge age={age} /></td>
                   </tr>
                 )
               })}
