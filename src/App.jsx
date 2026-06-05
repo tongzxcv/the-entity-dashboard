@@ -1,11 +1,14 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts"
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import './App.css'
@@ -949,17 +952,18 @@ function BrokerAccountFilter({ brokers, accounts, selected, onSelect }) {
     }),
   ]
   return (
-    <div className="broker-filter-card">
-      <div className="broker-filter-head">
+    <Card className="broker-filter-card">
+      <CardHeader className="broker-filter-head p-0">
         <span>Broker</span>
         <b>/ Account Filter</b>
-      </div>
-      <div className="broker-filter-scroll" role="list" aria-label="Broker account filter">
+      </CardHeader>
+      <CardContent className="broker-filter-scroll p-0" role="list" aria-label="Broker account filter">
         {brokerOptions.map((broker) => (
-          <button
+          <Button
             key={broker.id}
             type="button"
-            className={`broker-card ${selected === broker.id ? 'on' : ''}`}
+            variant="ghost"
+            className={cn('broker-card', selected === broker.id && 'on')}
             onClick={() => onSelect(broker.id)}
             title={broker.subtitle}
           >
@@ -967,11 +971,11 @@ function BrokerAccountFilter({ brokers, accounts, selected, onSelect }) {
               {broker.asset ? <img src={broker.asset} alt="" loading="lazy" /> : broker.logo}
             </span>
             <span className="broker-name">{broker.label}</span>
-            <span className="broker-count">{broker.count} {broker.count === 1 ? 'account' : 'accounts'}</span>
-          </button>
+            <Badge variant="secondary" className="broker-count">{broker.count} {broker.count === 1 ? 'account' : 'accounts'}</Badge>
+          </Button>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -1109,29 +1113,90 @@ function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }
 function PeriodFilter({ value, onChange, customStart, customEnd, onCustomStart, onCustomEnd, range }) {
   const label = value === 'custom' && range?.id === 'all' ? 'Set dates' : (range?.label || PERIOD_OPTIONS.find((option) => option.id === value)?.label || 'All Time')
   return (
-    <div className="period-filter-card">
-      <div className="period-filter-head">
+    <Card className="period-filter-card">
+      <CardHeader className="period-filter-head p-0">
         <span>Period View</span>
         <b>{label}</b>
-      </div>
-      <div className="period-tabs" role="group" aria-label="Performance period filter">
-        {PERIOD_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            className={`period-tab${value === option.id ? ' on' : ''}`}
-            onClick={() => onChange(option.id)}
-            type="button"
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Tabs value={value} onValueChange={onChange}>
+          <TabsList className="period-tabs">
+            {PERIOD_OPTIONS.map((option) => (
+              <TabsTrigger key={option.id} className="period-tab" value={option.id}>
+                {option.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       {value === 'custom' ? (
         <div className="custom-period">
-          <input className="fctl" type="date" value={customStart} onChange={(event) => onCustomStart(event.target.value)} />
-          <input className="fctl" type="date" value={customEnd} onChange={(event) => onCustomEnd(event.target.value)} />
+          <Input className="fctl" type="date" value={customStart} onChange={(event) => onCustomStart(event.target.value)} />
+          <Input className="fctl" type="date" value={customEnd} onChange={(event) => onCustomEnd(event.target.value)} />
         </div>
       ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function DashboardSelect({ value, onValueChange, options, className, ariaLabel }) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className={cn('fctl', className)} aria-label={ariaLabel}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function AccountFilterControls({
+  statusFilter,
+  setStatusFilter,
+  sortMode,
+  setSortMode,
+  strategyFilter,
+  setStrategyFilter,
+  strategyOptions,
+  searchTerm,
+  setSearchTerm,
+}) {
+  const statusOptions = [
+    { value: 'all', label: 'All status' },
+    { value: 'live', label: 'Live' },
+    { value: 'stale', label: 'Stale' },
+    { value: 'offline', label: 'Offline' },
+  ]
+  const sortOptions = [
+    { value: 'equity-desc', label: 'Equity high to low' },
+    { value: 'equity-asc', label: 'Equity low to high' },
+    { value: 'floating-desc', label: 'Floating high to low' },
+    { value: 'floating-asc', label: 'Floating low to high' },
+    { value: 'dd-desc', label: 'Peak DD high to low' },
+    { value: 'name-asc', label: 'Name A to Z' },
+  ]
+  const strategySelectOptions = [
+    { value: 'all', label: 'All strategies' },
+    ...strategyOptions.map((strategy) => ({ value: strategy, label: strategy })),
+  ]
+
+  return (
+    <div className="filter-tools">
+      <DashboardSelect value={statusFilter} onValueChange={setStatusFilter} options={statusOptions} ariaLabel="Account status filter" />
+      <DashboardSelect value={sortMode} onValueChange={setSortMode} options={sortOptions} className="wide" ariaLabel="Account sort mode" />
+      <DashboardSelect value={strategyFilter} onValueChange={setStrategyFilter} options={strategySelectOptions} className="wide" ariaLabel="Strategy filter" />
+      <Input
+        className="fctl search"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+        placeholder="Search account"
+      />
     </div>
   )
 }
@@ -1419,6 +1484,20 @@ function AttentionRequired({ accounts, snapshots = [] }) {
   )
 }
 
+function MetricCard({ label, value, tone = '', bar, meta }) {
+  const badgeVariant = tone === 'r' ? 'loss' : tone === 'g' ? 'profit' : 'secondary'
+  return (
+    <Card className="kpi">
+      <div className="kbar" style={{ background: bar }} />
+      <CardContent className="kpi-content">
+        <div className="kl">{label}</div>
+        <div className={`kv ${tone}`}>{value}</div>
+        <Badge variant={badgeVariant} className="km">{meta}</Badge>
+      </CardContent>
+    </Card>
+  )
+}
+
 function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts, monthlyRows, snapshots = [], sysData, lastUpdate, periodRange, isAdmin = false, onNavigate }) {
   const [tr, setTr] = useState("ALL")
   const chartWrapRef = useRef(null)
@@ -1532,12 +1611,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
           { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
           { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
         ].map(k => (
-          <div className="kpi" key={k.lbl}>
-            <div className="kbar" style={{ background: k.bar }} />
-            <div className="kl">{k.lbl}</div>
-            <div className={`kv ${k.cls}`}>{k.val}</div>
-            <div className="km">{k.meta}</div>
-          </div>
+          <MetricCard key={k.lbl} label={k.lbl} value={k.val} tone={k.cls} bar={k.bar} meta={k.meta} />
         ))}
       </div>
 
@@ -3434,32 +3508,17 @@ export default function App() {
                   />
                 )}
                 {showAccountTools && (
-                  <div className="filter-tools">
-                    <select className="fctl" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                      <option value="all">All status</option>
-                      <option value="live">Live</option>
-                      <option value="stale">Stale</option>
-                      <option value="offline">Offline</option>
-                    </select>
-                    <select className="fctl wide" value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-                      <option value="equity-desc">Equity high to low</option>
-                      <option value="equity-asc">Equity low to high</option>
-                      <option value="floating-desc">Floating high to low</option>
-                      <option value="floating-asc">Floating low to high</option>
-                      <option value="dd-desc">Peak DD high to low</option>
-                      <option value="name-asc">Name A to Z</option>
-                    </select>
-                    <select className="fctl wide" value={strategyFilter} onChange={(event) => setStrategyFilter(event.target.value)}>
-                      <option value="all">All strategies</option>
-                      {strategyOptions.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
-                    </select>
-                    <input
-                      className="fctl search"
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search account"
-                    />
-                  </div>
+                  <AccountFilterControls
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                    sortMode={sortMode}
+                    setSortMode={setSortMode}
+                    strategyFilter={strategyFilter}
+                    setStrategyFilter={setStrategyFilter}
+                    strategyOptions={strategyOptions}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                  />
                 )}
               </div>
             </div>
