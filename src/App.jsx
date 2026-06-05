@@ -1,6 +1,8 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts"
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
@@ -883,27 +885,31 @@ function LoginScreen({ onLogin }) {
             <div><span>VIEW</span><b>Mobile Ready</b></div>
           </div>
         </div>
-        <form onSubmit={submit} className="login-card">
-          <div className="login-card-head">
-            <div className="sec-lbl">Secure Access</div>
-            <h2>Sign In</h2>
-            <p>Access your trading command center.</p>
-          </div>
-          <label className="login-field">
-            Username
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="admin or demo" />
-          </label>
-          <label className="login-field">
-            Password
-            <span className="password-wrap">
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter password" />
-              <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
-            </span>
-          </label>
-          {loginError && <div className="login-error">{loginError}</div>}
-          <button className="login-submit" disabled={busy} type="submit">{busy ? 'Signing in...' : 'Login'}</button>
-          <div className="login-footnote">End-to-end dashboard session protected by proxy auth</div>
-        </form>
+        <Card className="login-card">
+          <form onSubmit={submit} className="login-form">
+            <CardHeader className="login-card-head">
+              <div className="sec-lbl">Secure Access</div>
+              <CardTitle>Sign In</CardTitle>
+              <CardDescription>Access your trading command center.</CardDescription>
+            </CardHeader>
+            <CardContent className="login-card-body">
+              <label className="login-field">
+                Username
+                <Input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="admin or demo" />
+              </label>
+              <label className="login-field">
+                Password
+                <span className="password-wrap">
+                  <Input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter password" />
+                  <Button type="button" className="password-toggle" variant="secondary" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</Button>
+                </span>
+              </label>
+              {loginError && <div className="login-error">{loginError}</div>}
+              <Button className="login-submit" disabled={busy} type="submit">{busy ? 'Signing in...' : 'Login'}</Button>
+              <div className="login-footnote">End-to-end dashboard session protected by proxy auth</div>
+            </CardContent>
+          </form>
+        </Card>
       </div>
     </div>
   )
