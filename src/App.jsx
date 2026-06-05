@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -1365,6 +1366,89 @@ function RiskDeskPage({ accounts, snapshots }) {
 }
 
 // โ”€โ”€ PAGES โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function ResponsiveTradeRows({ trades, isAdmin }) {
+  if (trades.length === 0) {
+    return <Card className="responsive-empty-card">No open trades right now.</Card>
+  }
+  return (
+    <div className="responsive-row-list">
+      {trades.map((trade, index) => {
+        const direction = String(trade.trade_type || '').toUpperCase()
+        const isBuy = direction === 'BUY'
+        const pnl = Number(trade.profit || 0)
+        const tradeLabel = isAdmin ? `#${trade.ticket}` : `Trade ${index + 1}`
+        return (
+          <Card className="responsive-row-card trade-row-card" key={`${trade.account.account_number}-${trade.ticket}`}>
+            <CardHeader className="responsive-row-head p-0">
+              <div>
+                <CardTitle className="responsive-row-title">{accountLabel(trade.account)}</CardTitle>
+                <CardDescription className="responsive-row-sub">
+                  {isAdmin ? maskAccountNumber(trade.account.account_number) : tradeLabel}
+                </CardDescription>
+              </div>
+              <Badge className={`badge ${isBuy ? 'bbuy' : 'bsell'}`}>{direction || '-'}</Badge>
+            </CardHeader>
+            <CardContent className="responsive-row-body p-0">
+              <div><span>Symbol</span><b>{trade.symbol || '-'}</b></div>
+              <div><span>{isAdmin ? 'Ticket' : 'Trade'}</span><b>{tradeLabel}</b></div>
+              <div><span>Lots</span><b>{Number(trade.lots || 0).toFixed(2)}</b></div>
+              {isAdmin && <div><span>Open Price</span><b>{Number(trade.open_price || 0).toFixed(5)}</b></div>}
+              <div><span>P&L</span><b style={{ color:pclr(pnl) }}>{fmtS(pnl)}</b></div>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResponsiveHistoryRows({ rows }) {
+  if (rows.length === 0) {
+    return <Card className="responsive-empty-card">No closed history for the selected filters.</Card>
+  }
+  return (
+    <div className="responsive-row-list">
+      {rows.slice(0, 250).map((row) => (
+        <Card className="responsive-row-card history-row-card" key={`${row.account_number}-${row.date}`}>
+          <CardHeader className="responsive-row-head p-0">
+            <div>
+              <CardTitle className="responsive-row-title">{row.name}</CardTitle>
+              <CardDescription className="responsive-row-sub">{row.date} / {brokerMeta(row.broker).label}</CardDescription>
+            </div>
+            <Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{row.pnl > 0 ? 'Profit' : row.pnl < 0 ? 'Loss' : 'Flat'}</Badge>
+          </CardHeader>
+          <CardContent className="responsive-row-body p-0">
+            <div><span>Account</span><b>{maskAccountNumber(row.account_number)}</b></div>
+            <div><span>P&L</span><b style={{ color:pclr(row.pnl) }}>{fmtS(row.pnl)}</b></div>
+            <div><span>Closed Deals</span><b>{row.trades}</b></div>
+            <div><span>Closed Lots</span><b>{row.lots.toFixed(2)}</b></div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function DataTableShell({ kicker, title, subtitle, actions = null, controls = null, table, mobileRows, className }) {
+  return (
+    <Card className={cn('sec data-table-shell', className)}>
+      <CardHeader className="sec-h data-table-head p-0">
+        <div>
+          <div className="sec-lbl">{kicker}</div>
+          <CardTitle className="sec-title">{title}</CardTitle>
+          {subtitle ? <CardDescription className="sec-sub">{subtitle}</CardDescription> : null}
+        </div>
+        {actions}
+      </CardHeader>
+      {controls ? <div className="data-table-controls">{controls}</div> : null}
+      <CardContent className="data-table-content p-0">
+        <div className="desktop-table-only">{table}</div>
+        <div className="mobile-card-only">{mobileRows}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function DataFreshnessStat({ accounts, lastUpdate }) {
   const newestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
   const staleCount = accounts.filter((account) => getAge(account).seconds >= 330).length
@@ -2489,68 +2573,81 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
         <div className="stat"><div className="sl">Buy / Sell</div><div className="sv">{tradeSummary.buy} / {tradeSummary.sell}</div><div className="ss">direction mix</div></div>
         <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
       </div>
-      <div className="sec">
-        <div className="sec-h" style={{ flexDirection:"column", gap:10, alignItems:"flex-start" }}>
-          <div className="trade-head-row">
-            <div><div className="sec-lbl">Active Trades</div><div className="sec-title">Open Positions</div></div>
-            {isAdmin && <button className="btn b-acc" onClick={exportTrades}>Export CSV</button>}
-          </div>
-          <div className="ftabs">
-            <button className={`ftab${tab==="all"?" on":""}`} onClick={() => setTab("all")}>
-              All Open <span className="fcnt">{tradeRows.length}</span>
-            </button>
-            {accountsWithTrades.map((acc) => (
-              <button key={acc.account_number} className={`ftab${tab===acc.account_number?" on":""}`} onClick={() => setTab(acc.account_number)}>
-                {accountLabel(acc)} <span className="fcnt">{(acc.open_trades || acc.trades || []).length}</span>
-              </button>
-            ))}
-          </div>
-          <div className="trade-filters">
-            <select className="fctl" value={direction} onChange={(event) => setDirection(event.target.value)}>
-              <option value="all">All directions</option>
-              <option value="buy">BUY only</option>
-              <option value="sell">SELL only</option>
-            </select>
-            <select className="fctl" value={symbolFilter} onChange={(event) => setSymbolFilter(event.target.value)}>
-              <option value="all">All symbols</option>
-              {symbols.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{overflowX:'auto'}}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>EA / Account</th>
-                <th>{isAdmin ? 'Ticket' : 'Trade'}</th>
-                <th>Symbol</th>
-                <th>Direction</th>
-                <th>Lots</th>
-                {isAdmin && <th>Open Price</th>}
-                <th>P&L</th>
-              </tr>
-            </thead>
-            <tbody>
+      <DataTableShell
+        className="trades-history-table"
+        kicker="Active Trades"
+        title="Open Positions"
+        actions={isAdmin && <Button className="btn b-acc" onClick={exportTrades}>Export CSV</Button>}
+        controls={(
+          <>
+            <div className="ftabs">
+              <Button variant="ghost" className={`ftab${tab==="all"?" on":""}`} onClick={() => setTab("all")}>
+                All Open <span className="fcnt">{tradeRows.length}</span>
+              </Button>
+              {accountsWithTrades.map((acc) => (
+                <Button key={acc.account_number} variant="ghost" className={`ftab${tab===acc.account_number?" on":""}`} onClick={() => setTab(acc.account_number)}>
+                  {accountLabel(acc)} <span className="fcnt">{(acc.open_trades || acc.trades || []).length}</span>
+                </Button>
+              ))}
+            </div>
+            <div className="trade-filters">
+              <Select value={direction} onValueChange={setDirection}>
+                <SelectTrigger className="fctl"><SelectValue placeholder="All directions" /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All directions</SelectItem>
+                    <SelectItem value="buy">BUY only</SelectItem>
+                    <SelectItem value="sell">SELL only</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Select value={symbolFilter} onValueChange={setSymbolFilter}>
+                <SelectTrigger className="fctl"><SelectValue placeholder="All symbols" /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All symbols</SelectItem>
+                    {symbols.map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+        table={(
+          <Table className="tbl">
+            <TableHeader>
+              <TableRow>
+                <TableHead>EA / Account</TableHead>
+                <TableHead>{isAdmin ? 'Ticket' : 'Trade'}</TableHead>
+                <TableHead>Symbol</TableHead>
+                <TableHead>Direction</TableHead>
+                <TableHead>Lots</TableHead>
+                {isAdmin && <TableHead>Open Price</TableHead>}
+                <TableHead>P&L</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {visibleTrades.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 7 : 6} style={{textAlign:'center', color:C.t3, padding:20}}>No open trades right now.</td></tr>
+                <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="empty-table-cell">No open trades right now.</TableCell></TableRow>
               ) : visibleTrades.map((t, index) => (
-                <tr key={`${t.account.account_number}-${t.ticket}`}>
-                  <td data-label="EA / Account">
+                <TableRow key={`${t.account.account_number}-${t.ticket}`}>
+                  <TableCell data-label="EA / Account">
                     <div style={{ fontWeight:600, color:C.t1, fontSize:12.5 }}>{accountLabel(t.account)}</div>
                     {isAdmin && <div style={{ fontFamily:C.fn, fontSize:10, color:C.t3, marginTop:1 }}>{maskAccountNumber(t.account.account_number)}</div>}
-                  </td>
-                  <td data-label={isAdmin ? 'Ticket' : 'Trade'} className="tm" style={{ color:C.t3 }}>{isAdmin ? `#${t.ticket}` : `Trade ${index + 1}`}</td>
-                  <td data-label="Symbol" style={{ fontFamily:C.fn, fontSize:13, fontWeight:600, color:C.yel }}>{t.symbol}</td>
-                  <td data-label="Direction"><span className={`badge ${String(t.trade_type).toUpperCase()==="BUY"?"bbuy":"bsell"}`}>{String(t.trade_type).toUpperCase()}</span></td>
-                  <td data-label="Lots" className="tm">{Number(t.lots).toFixed(2)}</td>
-                  {isAdmin && <td data-label="Open Price" className="tm">${Number(t.open_price).toFixed(5)}</td>}
-                  <td data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell data-label={isAdmin ? 'Ticket' : 'Trade'} className="tm" style={{ color:C.t3 }}>{isAdmin ? `#${t.ticket}` : `Trade ${index + 1}`}</TableCell>
+                  <TableCell data-label="Symbol" style={{ fontFamily:C.fn, fontSize:13, fontWeight:600, color:C.yel }}>{t.symbol}</TableCell>
+                  <TableCell data-label="Direction"><Badge className={`badge ${String(t.trade_type).toUpperCase()==="BUY"?"bbuy":"bsell"}`}>{String(t.trade_type).toUpperCase()}</Badge></TableCell>
+                  <TableCell data-label="Lots" className="tm">{Number(t.lots).toFixed(2)}</TableCell>
+                  {isAdmin && <TableCell data-label="Open Price" className="tm">{Number(t.open_price).toFixed(5)}</TableCell>}
+                  <TableCell data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        )}
+        mobileRows={<ResponsiveTradeRows trades={visibleTrades} isAdmin={isAdmin} />}
+      />
     </>
   )
 }
@@ -2854,63 +2951,96 @@ function HistoryPage({ accounts, isAdmin = false }) {
         <div className="stat"><div className="sl">Closed Deals</div><div className="sv">{summary.trades}</div><div className="ss">daily history total</div></div>
         <div className="stat"><div className="sl">Profitable / Loss Account-Days</div><div className="sv">{summary.winDays} / {summary.lossDays}</div><div className="ss">account-days with deals</div></div>
       </div>
-      <div className="sec">
-        <div className="sec-h history-head">
-          <div><div className="sec-lbl">Closed Performance</div><div className="sec-title">Trade History Summary</div></div>
-          {isAdmin && <button className="btn b-acc" onClick={exportHistory}>Export CSV</button>}
-        </div>
-        <div className="history-controls">
-          <select className="fctl" value={range} onChange={(event) => setRange(event.target.value)}>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="custom">Custom</option>
-            <option value="all">All history</option>
-          </select>
-          {range === 'custom' ? (
-            <div className="history-custom-range" aria-label="Custom history date range">
-              <input className="fctl" type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} aria-label="History custom start date" />
-              <input className="fctl" type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} aria-label="History custom end date" />
-              <span className={`history-custom-state${customState?.invalid ? ' invalid' : ''}`}>{customState?.label}</span>
-            </div>
-          ) : null}
-          <select className="fctl wide" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
-            <option value="all">All accounts</option>
-            {accounts.map((account) => <option key={account.account_number} value={account.account_number}>{accountLabel(account)}</option>)}
-          </select>
-          <select className="fctl wide" value={brokerFilter} onChange={(event) => setBrokerFilter(event.target.value)}>
-            <option value="all">All brokers</option>
-            {brokers.map((broker) => <option key={broker} value={broker}>{brokerMeta(broker).label}</option>)}
-          </select>
-          <select className="fctl" value={pnlFilter} onChange={(event) => setPnlFilter(event.target.value)}>
-            <option value="all">All results</option>
-            <option value="profit">Profit days</option>
-            <option value="loss">Loss days</option>
-            <option value="traded">Trade days only</option>
-          </select>
-          <input className="fctl search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search history" />
-        </div>
-        <div style={{overflowX:'auto'}}>
-          <table className="tbl">
-            <thead><tr><th>Date</th><th>EA</th><th>Account</th><th>Broker</th><th>P&L</th><th>Closed Deals</th><th>Closed Lots</th></tr></thead>
-            <tbody>
+      <DataTableShell
+        className="trades-history-table"
+        kicker="Closed Performance"
+        title="Trade History Summary"
+        actions={isAdmin && <Button className="btn b-acc" onClick={exportHistory}>Export CSV</Button>}
+        controls={(
+          <div className="history-controls">
+            <Select value={range} onValueChange={setRange}>
+              <SelectTrigger className="fctl"><SelectValue placeholder="Last 30 days" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="all">All history</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {range === 'custom' ? (
+              <div className="history-custom-range" aria-label="Custom history date range">
+                <Input className="fctl" type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} aria-label="History custom start date" />
+                <Input className="fctl" type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} aria-label="History custom end date" />
+                <span className={`history-custom-state${customState?.invalid ? ' invalid' : ''}`}>{customState?.label}</span>
+              </div>
+            ) : null}
+            <Select value={accountFilter} onValueChange={setAccountFilter}>
+              <SelectTrigger className="fctl wide"><SelectValue placeholder="All accounts" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All accounts</SelectItem>
+                  {accounts.map((account) => <SelectItem key={account.account_number} value={String(account.account_number)}>{accountLabel(account)}</SelectItem>)}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={brokerFilter} onValueChange={setBrokerFilter}>
+              <SelectTrigger className="fctl wide"><SelectValue placeholder="All brokers" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All brokers</SelectItem>
+                  {brokers.map((broker) => <SelectItem key={broker} value={broker}>{brokerMeta(broker).label}</SelectItem>)}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={pnlFilter} onValueChange={setPnlFilter}>
+              <SelectTrigger className="fctl"><SelectValue placeholder="All results" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All results</SelectItem>
+                  <SelectItem value="profit">Profit days</SelectItem>
+                  <SelectItem value="loss">Loss days</SelectItem>
+                  <SelectItem value="traded">Trade days only</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Input className="fctl search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search history" />
+          </div>
+        )}
+        table={(
+          <Table className="tbl">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>EA</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Broker</TableHead>
+                <TableHead>P&L</TableHead>
+                <TableHead>Closed Deals</TableHead>
+                <TableHead>Closed Lots</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredRows.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign:'center', color:C.t3, padding:20 }}>No closed history for the selected filters.</td></tr>
+                <TableRow><TableCell colSpan="7" className="empty-table-cell">No closed history for the selected filters.</TableCell></TableRow>
               ) : filteredRows.slice(0, 250).map((row) => (
-                <tr key={`${row.account_number}-${row.date}`}>
-                  <td data-label="Date" className="tm">{row.date}</td>
-                  <td data-label="EA" className="tn">{row.name}</td>
-                  <td data-label="Account" className="tm">{maskAccountNumber(row.account_number)}</td>
-                  <td data-label="Broker" style={{ color:C.t3, fontSize:11 }}>{row.broker}</td>
-                  <td data-label="P&L" className="tm" style={{ color:pclr(row.pnl), fontWeight:600 }}>{fmtS(row.pnl)}</td>
-                  <td data-label="Closed Deals" className="tm">{row.trades}</td>
-                  <td data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</td>
-                </tr>
+                <TableRow key={`${row.account_number}-${row.date}`}>
+                  <TableCell data-label="Date" className="tm">{row.date}</TableCell>
+                  <TableCell data-label="EA" className="tn">{row.name}</TableCell>
+                  <TableCell data-label="Account" className="tm">{maskAccountNumber(row.account_number)}</TableCell>
+                  <TableCell data-label="Broker" style={{ color:C.t3, fontSize:11 }}>{row.broker}</TableCell>
+                  <TableCell data-label="P&L" className="tm"><Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{fmtS(row.pnl)}</Badge></TableCell>
+                  <TableCell data-label="Closed Deals" className="tm">{row.trades}</TableCell>
+                  <TableCell data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        )}
+        mobileRows={<ResponsiveHistoryRows rows={filteredRows} />}
+      />
     </>
   )
 }
