@@ -12,7 +12,8 @@
     "test:ui-overview": "node scripts/ui-overview-regression.mjs",
     "test:ui-advisors": "node scripts/ui-advisors-regression.mjs",
     "test:ui-trades-history": "node scripts/ui-trades-history-regression.mjs",
-    "test:ui-symbols-preview": "node scripts/ui-symbols-preview-regression.mjs"
+    "test:ui-symbols-preview": "node scripts/ui-symbols-preview-regression.mjs",
+    "test:ui-admin-ops": "node scripts/ui-admin-ops-regression.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

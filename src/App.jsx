@@ -3107,15 +3107,56 @@ function ConfigField({ label, value, helper, masked = false, disabled = false })
     } catch {}
   }
   return (
-    <div className="config-field">
-      <div className="config-label">{label}</div>
-      <div className="config-box">
-        <code>{displayValue}</code>
-        {masked && value ? <button type="button" onClick={() => setRevealed((next) => !next)}>{revealed ? 'Hide' : 'Show'}</button> : null}
-        <button type="button" onClick={copyValue} disabled={!value || disabled} aria-label={`Copy ${label}`}>{Ico.copy}</button>
-      </div>
-      {helper ? <div className="config-help">{helper}</div> : null}
-    </div>
+    <Card className="config-field">
+      <CardHeader className="config-field-head">
+        <CardTitle className="config-label">{label}</CardTitle>
+      </CardHeader>
+      <CardContent className="config-field-body">
+        <div className="config-box">
+          <Input
+            className="config-input"
+            value={displayValue}
+            readOnly
+            aria-label={label}
+          />
+          <TooltipProvider delayDuration={150}>
+            {masked && value ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="config-action"
+                    onClick={() => setRevealed((next) => !next)}
+                  >
+                    {revealed ? 'Hide' : 'Show'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{revealed ? 'Hide private key' : 'Reveal private key'}</TooltipContent>
+              </Tooltip>
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="config-action"
+                  onClick={copyValue}
+                  disabled={!value || disabled}
+                  aria-label={`Copy ${label}`}
+                >
+                  {Ico.copy}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{disabled ? 'Admin only' : `Copy ${label}`}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        {helper ? <CardDescription className="config-help">{helper}</CardDescription> : null}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -3140,16 +3181,16 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
   const allowListUrl = window.location.origin
   return (
     <>
-      <div className="reporter-hero sec">
-        <div className="sec-h reporter-head">
+      <Card className="reporter-hero sec">
+        <CardHeader className="sec-h reporter-head">
           <div>
             <div className="sec-lbl">MT5 Reporter</div>
-            <div className="sec-title">Connect terminals without Python</div>
-            <div className="sec-sub">Reporter v1.04 backfills up to 365 days of MT5 closed-deal history. No Python collector needed on the VPS.</div>
+            <CardTitle className="sec-title">Connect terminals without Python</CardTitle>
+            <CardDescription className="sec-sub">Reporter v1.04 backfills up to 365 days of MT5 closed-deal history. No Python collector needed on the VPS.</CardDescription>
           </div>
-          <span className="chip cb">MQL5 WebRequest</span>
-        </div>
-        <div className="reporter-grid">
+          <Badge className="chip cb">MQL5 WebRequest</Badge>
+        </CardHeader>
+        <CardContent className="reporter-grid">
           <ConfigField
             label="Endpoint URL"
             value={INGEST_ENDPOINT}
@@ -3167,29 +3208,33 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
             disabled={!isAdmin}
             helper={isAdmin ? (configError || 'Keep this private. Rotate from server .env if leaked.') : 'Admin only. Demo users cannot view or copy the ingest key.'}
           />
-          <div className="reporter-status-card">
-            <div className="config-label">Last reporter sync</div>
+          <Card className="reporter-status-card">
+            <CardHeader className="config-field-head">
+              <CardTitle className="config-label">Last reporter sync</CardTitle>
+            </CardHeader>
+            <CardContent className="reporter-status-body">
             <div className="reporter-status-line">
               <span className="status-dot" style={{ background: syncTone }} />
               <strong style={{ color: syncTone }}>{syncLabel}</strong>
-              <b>200 OK</b>
+              <Badge className="badge blive">200 OK</Badge>
             </div>
             <p>{syncAgeText} · {activeAccounts}/{accounts.length} accounts live</p>
             {lastUpdate ? <em>Dashboard refresh {lastUpdate.toLocaleTimeString('en-US')}</em> : null}
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </CardContent>
         <div className="reporter-downloads">
-          <a className="dlbtn primary" href={REPORTER_PATH} download>{Ico.sync} Download MQ5 Source</a>
-          <a className="dlbtn" href={REPORTER_EX5_PATH} download>{Ico.lock} Download Compiled EX5</a>
+          <Button asChild className="dlbtn primary"><a href={REPORTER_PATH} download>{Ico.sync} Download MQ5 Source</a></Button>
+          <Button asChild variant="outline" className="dlbtn"><a href={REPORTER_EX5_PATH} download>{Ico.lock} Download Compiled EX5</a></Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="sec setup-sec">
-        <div className="sec-h">
-          <div><div className="sec-lbl">Setup checklist</div><div className="sec-title">Install one reporter per terminal</div></div>
-          <span className="chip ca">{accounts.length} accounts detected</span>
-        </div>
-        <div className="setup-list">
+      <Card className="sec setup-sec">
+        <CardHeader className="sec-h">
+          <div><div className="sec-lbl">Setup checklist</div><CardTitle className="sec-title">Install one reporter per terminal</CardTitle></div>
+          <Badge className="chip ca">{accounts.length} accounts detected</Badge>
+        </CardHeader>
+        <CardContent className="setup-list">
           {[
             ['Place the EX5 file', 'Drop it into MT5 -> MQL5 -> Experts folder, then restart MT5.'],
             ['Enable WebRequest', "Tools -> Options -> Expert Advisors -> tick 'Allow WebRequest for listed URL' and add the allow-list URL above."],
@@ -3202,15 +3247,15 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
               <div><strong>{title}</strong><p>{detail}</p></div>
             </div>
           ))}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="sec troubleshoot-sec">
-        <div className="sec-h">
-          <div><div className="sec-lbl">Troubleshooting</div><div className="sec-title">Common reporter issues</div></div>
-          <span className="chip cd">Fast checks</span>
-        </div>
-        <div className="trouble-list">
+      <Card className="sec troubleshoot-sec">
+        <CardHeader className="sec-h">
+          <div><div className="sec-lbl">Troubleshooting</div><CardTitle className="sec-title">Common reporter issues</CardTitle></div>
+          <Badge className="chip cd">Fast checks</Badge>
+        </CardHeader>
+        <CardContent className="trouble-list">
           {[
             ['WebRequest blocked', 'Re-check the allow-list URL exactly matches the endpoint host, scheme, and port. MT5 is strict.'],
             ['No data after install', 'Confirm Algo Trading is ON and the EA enabled icon appears on the chart.'],
@@ -3222,9 +3267,36 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
               <div><strong>{title}</strong><p>{detail}</p></div>
             </div>
           ))}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </>
+  )
+}
+
+function ResponsiveHealthRows({ accounts }) {
+  if (!accounts.length) return <div className="empty-card">No reporter accounts found.</div>
+  return (
+    <div className="responsive-row-list">
+      {accounts.map((account) => {
+        const age = getAge(account)
+        const statusClass = age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'
+        return (
+          <Card className="responsive-row-card" key={account.account_number}>
+            <div className="responsive-row-head">
+              <div>
+                <div className="responsive-row-title">{accountLabel(account)}</div>
+                <div className="responsive-row-sub">{maskAccountNumber(account.account_number)} / {brokerMeta(account.broker).label}</div>
+              </div>
+              <Badge className={`badge ${statusClass}`}>{age.label}</Badge>
+            </div>
+            <CardContent className="responsive-row-body p-0">
+              <div><span>Broker</span><b>{brokerMeta(account.broker).label}</b></div>
+              <div><span>Last update</span><b>{age.detail}</b></div>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
   )
 }
 
@@ -3238,71 +3310,78 @@ function LogsPage({ sysData, accounts = [], lastUpdate = null }) {
     <>
       <div className="loggrid">
         {[["CPU",sysData?.cpu_percent||0],["RAM",sysData?.ram_percent||0],["Disk",sysData?.disk_percent||0]].map(([l,v]) => (
-          <div className="logsc" key={l}>
+          <Card className="logsc" key={l}>
             <div className="logsl">{l}</div>
             <div className="logsv" style={{ color:resourceTone(v) }}>{v.toFixed(2)}%</div>
             <div className="logbar"><div className="logfill" style={{ width:`${Math.max(v,.3)}%`, background:resourceTone(v) }} /></div>
-          </div>
+          </Card>
         ))}
       </div>
-      <div className="sec">
-        <div className="sec-h">
-          <div><div className="sec-lbl">Forex System Health</div><div className="sec-title">Reporter heartbeat</div></div>
-          <span className="chip ca">{liveAccounts.length}/{accounts.length} live</span>
-        </div>
-        <div className="system-health-grid">
-          <div className="system-health-card">
-            <div className="config-label">Sync status</div>
+      <Card className="sec">
+        <CardHeader className="sec-h">
+          <div><div className="sec-lbl">Forex System Health</div><CardTitle className="sec-title">Reporter heartbeat</CardTitle></div>
+          <Badge className="chip ca">{liveAccounts.length}/{accounts.length} live</Badge>
+        </CardHeader>
+        <CardContent className="system-health-grid">
+          <Card className="system-health-card">
+            <CardHeader className="config-field-head"><CardTitle className="config-label">Sync status</CardTitle></CardHeader>
+            <CardContent className="system-health-body">
             <strong style={{ color: syncColor }}>{syncState}</strong>
             <p>{newestAge === Infinity ? 'No MT5 reporter heartbeat detected yet.' : `Newest reporter update ${newestAge.toFixed(0)}s ago.`}</p>
             {lastUpdate ? <em>Dashboard refreshed {lastUpdate.toLocaleTimeString('en-US')}</em> : null}
-          </div>
-          <div className="system-health-card">
-            <div className="config-label">Account coverage</div>
+            </CardContent>
+          </Card>
+          <Card className="system-health-card">
+            <CardHeader className="config-field-head"><CardTitle className="config-label">Account coverage</CardTitle></CardHeader>
+            <CardContent className="system-health-body">
             <strong>{liveAccounts.length}/{accounts.length}</strong>
             <p>{staleAccounts.length ? `${staleAccounts.length} accounts need reporter attention.` : 'All monitored accounts are updating inside the live threshold.'}</p>
-          </div>
-          <div className="system-health-card">
-            <div className="config-label">Admin note</div>
+            </CardContent>
+          </Card>
+          <Card className="system-health-card">
+            <CardHeader className="config-field-head"><CardTitle className="config-label">Admin note</CardTitle></CardHeader>
+            <CardContent className="system-health-body">
             <strong>Internal logs hidden</strong>
             <p>Raw server and TFM job logs are no longer shown in the product UI. Use VPS access for deep diagnostics.</p>
-          </div>
-        </div>
-      </div>
-      <div className="sec">
-        <div className="sec-h">
-          <div><div className="sec-lbl">Reporter Status</div><div className="sec-title">Per-account freshness</div></div>
-          <span className="chip cd">{accounts.length} accounts</span>
-        </div>
-        <div style={{ overflowX:'auto' }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>EA</th>
-                <th>Account</th>
-                <th>Broker</th>
-                <th>Last update</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
+      <DataTableShell
+        kicker="Reporter Status"
+        title="Per-account freshness"
+        actions={<Badge className="chip cd">{accounts.length} accounts</Badge>}
+        className="health-status-table"
+        table={(
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>EA</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Broker</TableHead>
+                <TableHead>Last update</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {accounts.map((account) => {
                 const age = getAge(account)
                 const statusClass = age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'
                 return (
-                  <tr key={account.account_number}>
-                    <td className="tn">{accountLabel(account)}</td>
-                    <td className="tm">{maskAccountNumber(account.account_number)}</td>
-                    <td>{brokerMeta(account.broker).label}</td>
-                    <td className="tm">{age.detail}</td>
-                    <td><span className={`badge ${statusClass}`}>{age.label}</span></td>
-                  </tr>
+                  <TableRow key={account.account_number}>
+                    <TableCell className="tn">{accountLabel(account)}</TableCell>
+                    <TableCell className="tm">{maskAccountNumber(account.account_number)}</TableCell>
+                    <TableCell>{brokerMeta(account.broker).label}</TableCell>
+                    <TableCell className="tm">{age.detail}</TableCell>
+                    <TableCell><Badge className={`badge ${statusClass}`}>{age.label}</Badge></TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        )}
+        mobileRows={<ResponsiveHealthRows accounts={accounts} />}
+      />
     </>
   )
 }

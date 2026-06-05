@@ -36,8 +36,8 @@ const checks = [
     name: 'Demo-safe trades still hide ticket and open price',
     ok:
       app.includes("{isAdmin ? 'Ticket' : 'Trade'}") &&
-      app.includes("{isAdmin && <th>Open Price</th>}") &&
-      app.includes("{isAdmin && <td data-label=\"Open Price\""),
+      app.includes("{isAdmin && <TableHead>Open Price</TableHead>}") &&
+      app.includes("{isAdmin && <TableCell data-label=\"Open Price\""),
   },
 ]
 
