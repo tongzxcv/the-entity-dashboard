@@ -1,0 +1,33 @@
+services:
+  backend:
+    image: forex-ea-dashboard-backend
+    container_name: forex-ea-backend
+    expose:
+      - "8000"
+    environment:
+      - INGEST_API_KEY=${INGEST_API_KEY}
+      - CORS_ORIGINS=http://161.118.245.238:3000
+      - DEMO_HIDE_ACCOUNT_IDS=true
+      - DEMO_HIDE_TICKETS=true
+      - DEMO_HIDE_OPEN_PRICES=true
+      - DEMO_HIDE_BROKERS=false
+      - DEMO_HIDE_LOTS=false
+      - DEMO_HIDE_PNL=false
+    volumes:
+      - ./backend:/app
+      - ./backend/data:/app/data
+      - /home/ubuntu/TFM/logs:/app/external_logs:ro
+    restart: always
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: forex-ea-proxy
+    ports:
+      - "3000:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      - backend
+    restart: always

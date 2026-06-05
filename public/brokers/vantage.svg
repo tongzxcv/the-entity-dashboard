@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 110">
+  <rect width="320" height="110" fill="#FFFFFF"/>
+  <path d="M42 25 70 91 96 25H76L62 61 48 25H42Z" fill="#004655"/>
+  <path d="M74 25h56L104 68 100 36 74 25Z" fill="#F15B2A"/>
+  <text x="130" y="70" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800" letter-spacing="-2" fill="#004655">vantage</text>
+</svg>

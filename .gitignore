@@ -1,0 +1,44 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Local secrets and auth material
+.env
+.env.*
+!.env.example
+.htpasswd
+nginx/.htpasswd
+secrets*.json
+*.ppk
+*.pem
+*.key
+
+# Local runtime data
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*
+!backend/data/.gitkeep
+logs/
+*.log
+*.pid
+
+# QA screenshots, temporary audits, generated backups
+qa-*/
+backups/
+tmp-*/
+*_qa_*.png
+qa-*.png
+*_live_*.png
+*_review_*.png
+*_winscp_*.log
+*_winscp_*.txt
+
+# Graphify generated cache, keep the committed graph/report files
+graphify-out/cache/
+graphify-out/20*/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

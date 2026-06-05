@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 90">
+  <rect width="240" height="90" fill="#FFFFFF"/>
+  <text x="44" y="56" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="-5" fill="#08265A">vt</text>
+  <circle cx="60" cy="58" r="5" fill="#11C7D7"/>
+  <text x="90" y="56" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="400" letter-spacing="-1" fill="#0B2C5B">markets</text>
+</svg>

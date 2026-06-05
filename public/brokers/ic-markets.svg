@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 90">
+  <rect width="240" height="90" fill="#FFFFFF"/>
+  <rect x="8" y="52" width="8" height="18" fill="#050505"/>
+  <rect x="20" y="38" width="8" height="32" fill="#050505"/>
+  <rect x="32" y="24" width="8" height="46" fill="#050505"/>
+  <text x="47" y="61" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="900" letter-spacing="-3" fill="#18E032">IC</text>
+  <text x="88" y="61" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900" letter-spacing="-3" fill="#050505">Markets</text>
+</svg>

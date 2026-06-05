@@ -1,0 +1,3466 @@
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts"
+import './App.css'
+
+const API_URL = import.meta.env.VITE_API_URL || ''
+const INGEST_ENDPOINT = `${window.location.origin}/api/mt5/update`
+const REPORTER_PATH = '/mt5/MT5DashboardReporter.mq5'
+const REPORTER_EX5_PATH = '/mt5/MT5DashboardReporter.ex5'
+
+// โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+const C = {
+  bg0:"#070B12", bg1:"#0B1220", bg2:"#101827", bg3:"#162235", bg4:"#1D2B42",
+  br0:"rgba(207,226,255,0.08)", br1:"rgba(207,226,255,0.14)", br2:"rgba(207,226,255,0.22)",
+  acc:"#38D5C8", accD:"rgba(56,213,200,0.11)", accG:"rgba(56,213,200,0.20)",
+  grn:"#49D993", grnD:"rgba(73,217,147,0.12)",
+  red:"#FF6B82", redD:"rgba(255,107,130,0.12)",
+  blu:"#74B8FF", yel:"#EFBF5A",
+  t1:"#F2F7FF", t2:"#AFC2D8", t3:"#7892B2",
+  fn:"'JetBrains Mono',monospace",
+  fh:"'Chakra Petch',sans-serif",
+  fb:"'Outfit',sans-serif",
+}
+
+// โ”€โ”€ SVG ICONS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+const Ico = {
+  overview: <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0.5" y="0.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="0.5" width="5.5" height="5.5" rx="1.5"/><rect x="0.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>,
+  advisors: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7.5" cy="5" r="3"/><path d="M1.5 14c0-3.3 2.7-5 6-5s6 1.7 6 5"/></svg>,
+  symbols: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="1,11 4.5,5.5 7.5,8 11,2.5 14,2.5"/></svg>,
+  trades: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="0.5" y="3" width="14" height="9" rx="1.5"/><line x1="0.5" y1="6.5" x2="14.5" y2="6.5"/></svg>,
+  reporter: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="0.5" width="10" height="14" rx="1.5"/><line x1="5.5" y1="4.5" x2="9.5" y2="4.5"/><line x1="5.5" y1="7" x2="9.5" y2="7"/><line x1="5.5" y1="9.5" x2="7.5" y2="9.5"/></svg>,
+  logs: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7.5" cy="7.5" r="6.5"/><polyline points="7.5,4 7.5,7.5 10,9" strokeLinecap="round"/></svg>,
+  sync: <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11.5 6.5A5 5 0 0 1 2 9.5M1.5 6.5A5 5 0 0 1 11 3.5"/><polyline points="11.5,3.5 11.5,6.5 8.5,6.5"/><polyline points="1.5,9.5 1.5,6.5 4.5,6.5"/></svg>,
+  copy: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  edit: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>,
+  trash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
+  logout: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 3v18"/></svg>,
+  lock: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+}
+
+// โ”€โ”€ HELPERS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+const fmtM = (v, signed = false) => {
+  const num = Number(v || 0)
+  const sign = signed && num > 0 ? "+" : signed && num < 0 ? "-" : ""
+  return `${sign}$${Math.abs(num).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+const fmtS = (v) => (Number(v || 0) >= 0 ? "+" : "-") + "$" + Math.abs(Number(v || 0)).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const pclr = (v) => Number(v || 0) >= 0 ? C.grn : C.red
+const hmClr = (v) => {
+  if (v === null || v === undefined) return "rgba(255,255,255,0.04)"
+  if (v > 10000) return "#1AD97C"
+  if (v > 1000)  return "#13A85E"
+  if (v > 0)     return "#0B6E3E"
+  return "#FF4C6B"
+}
+const formatPercent = (v) => `${Number(v || 0).toFixed(2)}%`
+const resourceTone = (value) => {
+  const level = Number(value || 0)
+  if (level >= 85) return C.red
+  if (level >= 70) return C.yel
+  return C.acc
+}
+const fmtLots = (value) => value === null || value === undefined ? '-' : Number(value || 0).toFixed(2)
+const pctOfBalance = (value, balance) => Number(balance || 0) ? (Number(value || 0) / Number(balance || 0)) * 100 : 0
+const maskAccountNumber = (value) => {
+  const str = String(value || '')
+  if (str.length <= 4) return str
+  return `${str.slice(0, 4)}****${str.slice(-2)}`
+}
+const accountLabel = (account) => String(account?.display_name || '').trim() || maskAccountNumber(account?.account_number)
+const brokerKey = (name) => String(name || 'unknown').toLowerCase()
+const brokerMeta = (name) => {
+  const key = brokerKey(name)
+  if (key.includes('interstellar')) return { label: 'InterStellar', logo: 'IS', asset: '/brokers/interstellar-core.png', tone: 'cyan', subtitle: 'InterStellar Financial Group' }
+  if (key.includes('tickmill')) return { label: 'Tickmill', logo: 'TM', asset: '/brokers/tickmill.svg', tone: 'red', subtitle: 'Tickmill' }
+  if (key.includes('hfm') || key.includes('hf markets') || key.includes('hotforex')) return { label: 'HFM', logo: 'HF', asset: '/brokers/hfm.svg', tone: 'red', subtitle: 'HF Markets' }
+  if (key.includes('vtmarkets') || key.includes('vt markets') || key.includes('vt-markets')) return { label: 'VT Markets', logo: 'VT', asset: '/brokers/vt-markets.svg', tone: 'blue', subtitle: 'VT Markets' }
+  if (key.includes('vantage') || key.includes('vig group')) return { label: 'Vantage', logo: 'VG', asset: '/brokers/vantage.svg', tone: 'cyan', subtitle: 'Vantage' }
+  if (key.includes('ic markets') || key.includes('icmarkets')) return { label: 'IC Markets', logo: 'IC', asset: '/brokers/ic-markets.svg', tone: 'green', subtitle: 'IC Markets' }
+  if (key.includes('exness')) return { label: 'Exness', logo: 'ex', asset: '/brokers/exness.svg', tone: 'gold', subtitle: 'Exness' }
+  if (key.includes('fp')) return { label: 'FP Markets', logo: 'FP', asset: '/brokers/fp-markets.svg', tone: 'blue', subtitle: 'FP Markets' }
+  if (key.includes('xm')) return { label: 'XM', logo: 'XM', asset: '/brokers/xm.svg', tone: 'red', subtitle: 'XM' }
+  if (key.includes('pepperstone')) return { label: 'Pepperstone', logo: 'P', asset: '/brokers/pepperstone.svg', tone: 'blue', subtitle: 'Pepperstone' }
+  return { label: name || 'Unknown', logo: String(name || '?').slice(0, 2).toUpperCase(), asset: null, tone: 'cyan', subtitle: name || 'Unknown broker' }
+}
+
+function getAge(account) {
+  if (!account?.last_update) return { level: 'danger', label: 'No data', detail: 'Never updated', seconds: Infinity }
+  const parsed = new Date(`${String(account.last_update).replace(' ', 'T')}Z`)
+  const seconds = (Date.now() - parsed.getTime()) / 1000
+  if (seconds < 330) return { level: 'success', label: 'Live', detail: `${Math.round(seconds)}s ago`, seconds }
+  if (seconds < 1800) return { level: 'warning', label: 'Delayed', detail: `${(seconds / 60).toFixed(1)}m ago`, seconds }
+  if (seconds < 86400) return { level: 'warning', label: 'Stale', detail: `${(seconds / 3600).toFixed(1)}h ago`, seconds }
+  return { level: 'danger', label: 'Offline', detail: '> 1 day ago', seconds }
+}
+
+function accountCurrency(account) {
+  const broker = String(account.broker || '').toLowerCase()
+  const number = String(account.account_number || '')
+  if (broker.includes('cent') || number.includes('usc')) return 'USC'
+  return 'USD'
+}
+
+const PERIOD_OPTIONS = [
+  { id: 'all', label: 'All Time' },
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: 'week', label: 'Last Week' },
+  { id: 'month', label: 'Last Month' },
+  { id: '3m', label: '3M' },
+  { id: '6m', label: '6M' },
+  { id: '1y', label: '1Y' },
+  { id: 'custom', label: 'Custom' },
+]
+
+function dateKey(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function startOfLocalWeek(date) {
+  const start = new Date(date)
+  const day = start.getDay() || 7
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - day + 1)
+  return start
+}
+
+function addDays(date, amount) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+function getPeriodRange(period, customStart = '', customEnd = '') {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  if (period === 'yesterday') {
+    const y = addDays(today, -1)
+    return { id: period, label: 'Yesterday', start: dateKey(y), end: dateKey(y) }
+  }
+  if (period === 'week') return { id: period, label: 'Last Week', start: dateKey(addDays(today, -6)), end: dateKey(today) }
+  if (period === 'month') return { id: period, label: 'Last Month', start: dateKey(addDays(today, -29)), end: dateKey(today) }
+  if (period === '3m') return { id: period, label: '3M', start: dateKey(addDays(today, -89)), end: dateKey(today) }
+  if (period === '6m') return { id: period, label: '6M', start: dateKey(addDays(today, -179)), end: dateKey(today) }
+  if (period === '1y') return { id: period, label: '1Y', start: dateKey(addDays(today, -364)), end: dateKey(today) }
+  if (period === 'custom') {
+    if (customStart && customEnd && customStart <= customEnd) {
+      return { id: period, label: `${customStart} to ${customEnd}`, start: customStart, end: customEnd, incomplete: false }
+    }
+    if (customStart && customEnd && customStart > customEnd) {
+      return { id: period, label: 'Custom: invalid range', start: customStart, end: customEnd, incomplete: true }
+    }
+    return { id: period, label: customStart || customEnd ? 'Custom: complete dates' : 'Custom: select dates', start: customStart || null, end: customEnd || null, incomplete: true }
+  }
+  return { id: 'all', label: 'All Time', start: null, end: null }
+}
+
+function rowInPeriod(row, periodRange) {
+  if (periodRange?.id === 'custom' && periodRange.incomplete) return false
+  if (!periodRange?.start && !periodRange?.end) return true
+  const date = String(row?.date || '')
+  if (!date) return false
+  if (periodRange.start && date < periodRange.start) return false
+  if (periodRange.end && date > periodRange.end) return false
+  return true
+}
+
+function collectHistory(accounts) {
+  return accounts.flatMap((account) =>
+    (account.daily_history || []).map((row) => ({
+      ...row,
+      account_number: account.account_number,
+      name: accountLabel(account),
+      broker: account.broker,
+      balance: Number(account.balance || 0),
+    })),
+  )
+}
+
+function collectPeriodHistory(accounts, periodRange = null) {
+  return collectHistory(accounts).filter((row) => rowInPeriod(row, periodRange))
+}
+
+function latestReportingDate(accounts) {
+  return collectHistory(accounts)
+    .map((row) => String(row.date || ''))
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null
+}
+
+function reportingDayLabel(reportingDate) {
+  if (!reportingDate) return 'Latest Day'
+  return reportingDate === dateKey(new Date()) ? 'Today' : 'Latest Day'
+}
+
+function accountOpenLots(account) {
+  return (account.open_trades || account.trades || []).reduce((sum, trade) => sum + Number(trade.lots || 0), 0)
+}
+
+function numericField(account, keys) {
+  for (const key of keys) {
+    const value = account?.[key]
+    if (value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return null
+}
+
+function latestHistoryRow(account) {
+  const history = account?.daily_history || []
+  const latestDate = history
+    .map((row) => String(row.date || ''))
+    .filter(Boolean)
+    .sort()
+    .at(-1)
+  return history.find((row) => String(row.date || '') === latestDate) || null
+}
+
+function accountTodayProfit(account) {
+  return Number(latestHistoryRow(account)?.daily_profit || 0)
+}
+
+function accountTodayTrades(account) {
+  return Number(latestHistoryRow(account)?.daily_trades || 0)
+}
+
+function accountTodayLots(account) {
+  const value = Number(latestHistoryRow(account)?.daily_lots || 0)
+  return value > 0 ? value : null
+}
+
+function accountClosedProfit(account) {
+  const reported = numericField(account, ['total_closed_pnl', 'closed_pnl', 'total_profit', 'total_pnl'])
+  if (reported !== null) return reported
+  return accountTodayProfit(account)
+}
+
+function accountClosedTrades(account) {
+  const reported = numericField(account, ['total_closed_trades', 'closed_trades'])
+  if (reported !== null) return reported
+  return accountTodayTrades(account)
+}
+
+function accountClosedLots(account) {
+  const reported = numericField(account, ['total_closed_lots', 'closed_lots'])
+  if (reported !== null) return reported
+  const historyLots = (account.daily_history || []).reduce((sum, row) => sum + Number(row.daily_lots || 0), 0)
+  return historyLots > 0 ? historyLots : null
+}
+
+function accountTotalLots(account) {
+  return Number(accountClosedLots(account) || 0)
+}
+
+function accountMaxDrawdown(account, snapshots = []) {
+  const accountNumber = String(account.account_number)
+  const reportedPeak = numericField(account, ['peak_drawdown_percent', 'max_drawdown_percent'])
+  const historicalMax = snapshots
+    .filter((snapshot) => String(snapshot.account_number) === accountNumber)
+    .reduce((max, snapshot) => Math.max(max, Number(snapshot.drawdown_percent || 0)), 0)
+  return Math.max(Number(account.drawdown_percent || 0), historicalMax, Number(reportedPeak || 0))
+}
+
+function accountPeakDrawdownAmount(account) {
+  return numericField(account, ['peak_drawdown_amount', 'max_drawdown_amount']) || 0
+}
+
+function summarize(accounts, snapshots = []) {
+  const history = collectHistory(accounts)
+  const reportingDate = latestReportingDate(accounts)
+  const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0)
+  const totalEquity = accounts.reduce((sum, account) => sum + Number(account.equity || 0), 0)
+  const floating = totalEquity - totalBalance
+  const openTrades = accounts.reduce((sum, account) => sum + Number(account.open_positions || (account.open_trades || []).length || 0), 0)
+  const liveAccounts = accounts.filter((account) => getAge(account).seconds < 330).length
+  const activeEas = accounts.filter((account) => getAge(account).seconds < 1800).length
+  const latestRows = history.filter((row) => row.date === reportingDate)
+  const todayPnl = latestRows.reduce((sum, row) => sum + Number(row.daily_profit || 0), 0)
+  const todayTrades = latestRows.reduce((sum, row) => sum + Number(row.daily_trades || 0), 0)
+  const tradeDays = history.filter((row) => Number(row.daily_trades || 0) > 0)
+  const winDays = tradeDays.filter((row) => Number(row.daily_profit || 0) > 0).length
+  const overallWinRate = tradeDays.length ? (winDays / tradeDays.length) * 100 : 0
+  const maxDrawdown = accounts.reduce((max, account) => Math.max(max, accountMaxDrawdown(account, snapshots)), 0)
+  const totalLots = accounts.reduce((sum, account) => sum + accountTotalLots(account), 0)
+  return { totalBalance, totalEquity, floating, openTrades, liveAccounts, activeEas, todayPnl, todayTrades, overallWinRate, worstDrawdown: maxDrawdown, maxDrawdown, totalLots, tradeDays: tradeDays.length, reportingDate }
+}
+
+function buildPeriodStats(accounts, periodRange = null) {
+  const history = collectHistory(accounts)
+  const selectedHistory = collectPeriodHistory(accounts, periodRange)
+  const reportingDate = latestReportingDate(accounts)
+  const referenceDate = reportingDate ? new Date(`${reportingDate}T00:00:00`) : new Date()
+  const referenceKey = dateKey(referenceDate)
+  const weekStart = startOfLocalWeek(referenceDate)
+  const weekKeys = Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(weekStart)
+    date.setDate(weekStart.getDate() + index)
+    return dateKey(date)
+  })
+  const monthKey = referenceKey.slice(0, 7)
+  const byDate = new Map()
+  history.forEach((row) => {
+    byDate.set(row.date, (byDate.get(row.date) || 0) + Number(row.daily_profit || 0))
+  })
+  const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0)
+  const totalEquity = accounts.reduce((sum, account) => sum + Number(account.equity || 0), 0)
+  const floating = totalEquity - totalBalance
+  const weekPnl = weekKeys.reduce((sum, key) => sum + Number(byDate.get(key) || 0), 0)
+  const monthPnl = history
+    .filter((row) => String(row.date || '').startsWith(monthKey))
+    .reduce((sum, row) => sum + Number(row.daily_profit || 0), 0)
+  const dayPnl = Number(byDate.get(referenceKey) || 0)
+  const weekDays = weekKeys.map((key) => ({ key, label: new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }), pnl: Number(byDate.get(key) || 0) }))
+  const selectedTradeDays = selectedHistory.filter((row) => Number(row.daily_trades || 0) > 0)
+  const selectedPnl = selectedHistory.reduce((sum, row) => sum + Number(row.daily_profit || 0), 0)
+  const selectedTrades = selectedHistory.reduce((sum, row) => sum + Number(row.daily_trades || 0), 0)
+  const selectedLots = selectedHistory.reduce((sum, row) => sum + Number(row.daily_lots || 0), 0)
+  const selectedWinDays = selectedTradeDays.filter((row) => Number(row.daily_profit || 0) > 0).length
+  const selectedLossDays = selectedTradeDays.filter((row) => Number(row.daily_profit || 0) < 0).length
+  const selectedBest = selectedTradeDays.length ? Math.max(...selectedTradeDays.map((row) => Number(row.daily_profit || 0))) : 0
+  const selectedWorst = selectedTradeDays.length ? Math.min(...selectedTradeDays.map((row) => Number(row.daily_profit || 0))) : 0
+  return {
+    totalBalance, totalEquity, floating, dayPnl, weekPnl, monthPnl, weekDays,
+    selectedPnl, selectedTrades, selectedLots, selectedWinDays, selectedLossDays,
+    selectedBest, selectedWorst, selectedTradeDays: selectedTradeDays.length, reportingDate,
+    selectedWinRate: selectedTradeDays.length ? (selectedWinDays / selectedTradeDays.length) * 100 : 0,
+  }
+}
+
+function buildEquitySeries(accounts, snapshots = []) {
+  const allowedAccounts = new Set(accounts.map((account) => String(account.account_number)))
+  const sortedSnapshots = snapshots
+    .filter((snapshot) => allowedAccounts.has(String(snapshot.account_number)) && (snapshot.bucket_ts || snapshot.timestamp))
+    .sort((a, b) => String(a.bucket_ts || a.timestamp).localeCompare(String(b.bucket_ts || b.timestamp)))
+  const latestByAccount = new Map()
+  const snapshotPoints = []
+  let activeBucket = null
+  let bucketRows = []
+  const flushBucket = () => {
+    if (!activeBucket || bucketRows.length === 0) return
+    bucketRows.forEach((snapshot) => {
+      latestByAccount.set(String(snapshot.account_number), Number(snapshot.equity || 0))
+    })
+    if (latestByAccount.size !== allowedAccounts.size) return
+    const value = Array.from(latestByAccount.values()).reduce((sum, equity) => sum + equity, 0)
+    snapshotPoints.push({ date: activeBucket, value })
+  }
+  sortedSnapshots.forEach((snapshot) => {
+    const bucket = snapshot.bucket_ts || snapshot.timestamp
+    if (activeBucket && bucket !== activeBucket) {
+      flushBucket()
+      bucketRows = []
+    }
+    activeBucket = bucket
+    bucketRows.push(snapshot)
+  })
+  flushBucket()
+  const recentSnapshotPoints = snapshotPoints.slice(-1440)
+  if (recentSnapshotPoints.length >= 2) return recentSnapshotPoints
+
+  const totals = new Map()
+  accounts.forEach((account) => {
+    const base = Number(account.balance || 0)
+    ;(account.daily_history || []).forEach((row) => {
+      totals.set(row.date, (totals.get(row.date) || 0) + base + Number(row.daily_profit || 0))
+    })
+  })
+  const points = Array.from(totals.entries()).sort(([a], [b]) => a.localeCompare(b)).slice(-52).map(([date, value]) => ({ date, value }))
+  if (points.length >= 2) return points
+  const totalEquity = accounts.reduce((sum, account) => sum + Number(account.equity || 0), 0)
+  return [
+    { date: 'Baseline', value: totalEquity },
+    { date: 'Now', value: totalEquity },
+  ]
+}
+
+function buildMonthlyRows(accounts, periodRange = null) {
+  const byMonth = new Map()
+  collectPeriodHistory(accounts, periodRange).forEach((row) => {
+    const month = String(row.date || '').slice(0, 7)
+    if (!month) return
+    const item = byMonth.get(month) || { month, pnl: 0, trades: 0, lots: 0, winDays: 0, lossDays: 0, bestDay: null, worstDay: null, accounts: new Map() }
+    const pnl = Number(row.daily_profit || 0)
+    const trades = Number(row.daily_trades || 0)
+    const lots = Number(row.daily_lots || 0)
+    item.pnl += pnl
+    item.trades += trades
+    item.lots += lots
+    if (trades > 0 && pnl > 0) item.winDays += 1
+    if (trades > 0 && pnl < 0) item.lossDays += 1
+    item.bestDay = item.bestDay === null ? pnl : Math.max(item.bestDay, pnl)
+    item.worstDay = item.worstDay === null ? pnl : Math.min(item.worstDay, pnl)
+    const accountItem = item.accounts.get(row.account_number) || {
+      account_number: row.account_number,
+      name: row.name,
+      broker: row.broker,
+      pnl: 0,
+      trades: 0,
+      lots: 0,
+    }
+    accountItem.pnl += pnl
+    accountItem.trades += trades
+    accountItem.lots += lots
+    item.accounts.set(row.account_number, accountItem)
+    byMonth.set(month, item)
+  })
+  return Array.from(byMonth.values()).map((row) => ({
+    ...row,
+    accounts: Array.from(row.accounts.values()).sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl)),
+  })).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12)
+}
+
+function buildRankings(accounts, periodRange = null) {
+  const scopedPeriod = Boolean(periodRange && periodRange.id !== 'all')
+  return accounts
+    .map((account) => {
+      const history = scopedPeriod
+        ? (account.daily_history || []).filter((row) => rowInPeriod(row, periodRange))
+        : account.daily_history || []
+      const closedProfit = scopedPeriod
+        ? history.reduce((sum, row) => sum + Number(row.daily_profit || 0), 0)
+        : accountClosedProfit(account)
+      const trades = scopedPeriod
+        ? history.reduce((sum, row) => sum + Number(row.daily_trades || 0), 0)
+        : accountClosedTrades(account)
+      const lots = history.reduce((sum, row) => sum + Number(row.daily_lots || 0), 0)
+      const winDays = history.filter((row) => Number(row.daily_trades || 0) > 0 && Number(row.daily_profit || 0) > 0).length
+      const tradeDays = history.filter((row) => Number(row.daily_trades || 0) > 0).length
+      const returnPct = Number(account.balance || 0) ? (closedProfit / Number(account.balance || 0)) * 100 : 0
+      return { account, closedProfit, trades, lots, winRate: tradeDays ? (winDays / tradeDays) * 100 : 0, returnPct }
+    })
+    .sort((a, b) => b.returnPct - a.returnPct)
+}
+
+function symbolCategory(symbol) {
+  const key = String(symbol || '').toUpperCase()
+  if (key.includes('XAU') || key.includes('GOLD')) return 'Gold'
+  if (key.includes('JPY')) return 'Yen Pairs'
+  if (key.includes('NAS') || key.includes('US30') || key.includes('SPX') || key.includes('DOW')) return 'Indices'
+  if (key.includes('BTC') || key.includes('ETH') || key.includes('XBT')) return 'Crypto'
+  const majors = ['EURUSD', 'GBPUSD', 'AUDUSD', 'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY']
+  if (majors.some((major) => key.includes(major))) return 'Major Pairs'
+  return 'Minor / Cross'
+}
+
+function buildSymbolExposure(accounts) {
+  const map = new Map()
+  accounts.forEach((account) => {
+    ;(account.open_trades || account.trades || []).forEach((trade) => {
+      const symbol = trade.symbol || 'Unknown'
+      const item = map.get(symbol) || { symbol, category: symbolCategory(symbol), lots: 0, profit: 0, trades: 0, buy: 0, sell: 0, accounts: new Set() }
+      item.lots += Number(trade.lots || 0)
+      item.profit += Number(trade.profit || 0)
+      item.trades += 1
+      item.accounts.add(account.account_number)
+      if (String(trade.trade_type || '').toUpperCase() === 'BUY') item.buy += 1
+      if (String(trade.trade_type || '').toUpperCase() === 'SELL') item.sell += 1
+      map.set(symbol, item)
+    })
+  })
+  return Array.from(map.values()).map((row) => ({ ...row, accounts: row.accounts.size })).sort((a, b) => Math.abs(b.lots) - Math.abs(a.lots))
+}
+
+function buildAccountPeriodStats(account) {
+  const history = account?.daily_history || []
+  const reportingDate = history
+    .map((row) => String(row.date || ''))
+    .filter(Boolean)
+    .sort()
+    .at(-1) || dateKey(new Date())
+  const referenceDate = new Date(`${reportingDate}T00:00:00`)
+  const weekStart = startOfLocalWeek(referenceDate)
+  const monthKey = reportingDate.slice(0, 7)
+  const yearKey = reportingDate.slice(0, 4)
+  const byDate = new Map()
+  const byMonth = new Map()
+
+  history.forEach((row) => {
+    const key = String(row.date || '')
+    if (!key) return
+    const current = byDate.get(key) || { pnl: 0, trades: 0, lots: 0 }
+    current.pnl += Number(row.daily_profit || 0)
+    current.trades += Number(row.daily_trades || 0)
+    current.lots += Number(row.daily_lots || 0)
+    byDate.set(key, current)
+
+    const month = key.slice(0, 7)
+    const monthCurrent = byMonth.get(month) || { pnl: 0, trades: 0, lots: 0 }
+    monthCurrent.pnl += Number(row.daily_profit || 0)
+    monthCurrent.trades += Number(row.daily_trades || 0)
+    monthCurrent.lots += Number(row.daily_lots || 0)
+    byMonth.set(month, monthCurrent)
+  })
+
+  const dailySeries = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(referenceDate)
+    date.setHours(0, 0, 0, 0)
+    date.setDate(referenceDate.getDate() - (6 - index))
+    const key = dateKey(date)
+    return { key, label: date.toLocaleDateString(undefined, { weekday: 'short' }), value: Number(byDate.get(key)?.pnl || 0) }
+  })
+  const weeklySeries = Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(weekStart)
+    date.setDate(weekStart.getDate() + index)
+    const key = dateKey(date)
+    return { key, label: date.toLocaleDateString(undefined, { weekday: 'short' }), value: Number(byDate.get(key)?.pnl || 0) }
+  })
+  const monthlySeries = Array.from({ length: 12 }, (_, index) => {
+    const month = `${yearKey}-${String(index + 1).padStart(2, '0')}`
+    const label = new Date(Number(yearKey), index, 1).toLocaleDateString(undefined, { month: 'short' })
+    return { key: month, label, value: Number(byMonth.get(month)?.pnl || 0) }
+  })
+  const todayData = byDate.get(reportingDate) || { pnl: 0, trades: 0, lots: 0 }
+  const weekData = weeklySeries.reduce((acc, point) => {
+    const item = byDate.get(point.key) || { pnl: 0, trades: 0, lots: 0 }
+    return { pnl: acc.pnl + item.pnl, trades: acc.trades + item.trades, lots: acc.lots + item.lots }
+  }, { pnl: 0, trades: 0, lots: 0 })
+  const monthData = history
+    .filter((row) => String(row.date || '').startsWith(monthKey))
+    .reduce((acc, row) => ({
+      pnl: acc.pnl + Number(row.daily_profit || 0),
+      trades: acc.trades + Number(row.daily_trades || 0),
+      lots: acc.lots + Number(row.daily_lots || 0),
+    }), { pnl: 0, trades: 0, lots: 0 })
+
+  return {
+    today: { ...todayData, series: dailySeries, reportingDate },
+    week: { ...weekData, series: weeklySeries },
+    month: { ...monthData, series: monthlySeries },
+  }
+}
+
+function inferEaProfile(account, snapshots = []) {
+  const name = accountLabel(account).toLowerCase()
+  const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
+  const openLots = accountOpenLots(account)
+  const maxDd = accountMaxDrawdown(account, snapshots)
+  const floatingPct = pctOfBalance(Number(account.equity || 0) - Number(account.balance || 0), account.balance)
+  let strategy = 'Portfolio EA'
+  if (name.includes('manual') || name.includes('hand')) strategy = 'Manual'
+  else if (name.includes('janus')) strategy = 'JANUS'
+  else if (name.includes('steady')) strategy = 'SteadyFlow'
+  else if (openTrades >= 10) strategy = 'Grid / Multi-trade'
+  else if (openTrades > 0) strategy = 'Active strategy'
+
+  let risk = 'Low risk'
+  let level = 'low'
+  if (maxDd >= 10 || floatingPct <= -8 || openLots >= 20) { risk = 'High risk'; level = 'high' }
+  else if (maxDd >= 3 || floatingPct <= -3 || openLots >= 5) { risk = 'Medium risk'; level = 'medium' }
+  return { strategy, risk, level }
+}
+
+function buildClosedHistoryRows(accounts) {
+  return accounts.flatMap((account) =>
+    (account.daily_history || []).map((row) => ({
+      date: row.date,
+      account,
+      account_number: account.account_number,
+      name: accountLabel(account),
+      broker: account.broker || 'Unknown broker',
+      pnl: Number(row.daily_profit || 0),
+      trades: Number(row.daily_trades || 0),
+      lots: Number(row.daily_lots || 0),
+    })),
+  ).filter((row) => row.date).sort((a, b) => String(b.date).localeCompare(String(a.date)))
+}
+
+function buildWeekendExposure(accounts) {
+  const rows = accounts.map((account) => {
+    const trades = account.open_trades || account.trades || []
+    const lots = accountOpenLots(account)
+    const floating = Number(account.equity || 0) - Number(account.balance || 0)
+    return { account, trades: trades.length, lots, floating }
+  }).filter((row) => row.trades > 0 || Math.abs(row.floating) > 0.01)
+    .sort((a, b) => Math.abs(b.floating) - Math.abs(a.floating))
+  const totalTrades = rows.reduce((sum, row) => sum + row.trades, 0)
+  const totalLots = rows.reduce((sum, row) => sum + row.lots, 0)
+  const totalFloating = rows.reduce((sum, row) => sum + row.floating, 0)
+  const now = new Date()
+  const day = now.getDay()
+  const isFridayWindow = day === 5 && now.getHours() >= 12
+  const isWeekend = day === 0 || day === 6
+  const level = totalTrades === 0 ? 'clear' : (isWeekend || isFridayWindow ? 'danger' : 'watch')
+  return { rows, totalTrades, totalLots, totalFloating, isFridayWindow, isWeekend, level }
+}
+
+function accountRebate(account) {
+  return numericField(account, ['rebate', 'rebate_total', 'total_rebate', 'cashback', 'commission_rebate']) || 0
+}
+
+function buildRebateSummary(accounts) {
+  const rows = accounts
+    .map((account) => ({ account, rebate: accountRebate(account), lots: accountClosedLots(account) || 0 }))
+    .filter((row) => Math.abs(row.rebate) > 0.0001)
+  return {
+    total: rows.reduce((sum, row) => sum + row.rebate, 0),
+    rows: rows.sort((a, b) => Math.abs(b.rebate) - Math.abs(a.rebate)),
+    hasData: rows.length > 0,
+  }
+}
+
+function buildRiskRows(accounts, snapshots = []) {
+  return accounts.map((account) => {
+    const floating = Number(account.equity || 0) - Number(account.balance || 0)
+    const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
+    const openLots = accountOpenLots(account)
+    const currentDd = Number(account.drawdown_percent || 0)
+    const peakDd = accountMaxDrawdown(account, snapshots)
+    const floatingPct = pctOfBalance(floating, account.balance)
+    const age = getAge(account)
+    const score =
+      (currentDd >= 10 ? 45 : currentDd >= 5 ? 28 : currentDd >= 2 ? 12 : 0) +
+      (floatingPct <= -10 ? 35 : floatingPct <= -5 ? 22 : floatingPct <= -2 ? 10 : 0) +
+      (openTrades >= 10 ? 18 : openTrades > 0 ? 8 : 0) +
+      (age.seconds >= 1800 ? 18 : age.seconds >= 330 ? 8 : 0)
+    const level = score >= 65 ? 'critical' : score >= 30 ? 'warning' : 'clear'
+    return { account, floating, floatingPct, openTrades, openLots, currentDd, peakDd, age, score, level }
+  }).sort((a, b) => b.score - a.score || Math.abs(b.floating) - Math.abs(a.floating))
+}
+
+function buildAlerts(accounts, snapshots = [], sysData = null) {
+  const alerts = []
+  const weekend = buildWeekendExposure(accounts)
+  accounts.forEach((account) => {
+    const age = getAge(account)
+    const label = accountLabel(account)
+    const floating = Number(account.equity || 0) - Number(account.balance || 0)
+    const floatingPct = pctOfBalance(floating, account.balance)
+    const currentDd = Number(account.drawdown_percent || 0)
+    const peakDd = accountMaxDrawdown(account, snapshots)
+    if (age.seconds >= 1800) {
+      alerts.push({ level: 'critical', title: `${label} data stale`, detail: `Last update ${age.detail}. Check MT5 reporter or VPS connectivity.`, scope: 'Data' })
+    } else if (age.seconds >= 330) {
+      alerts.push({ level: 'warning', title: `${label} delayed`, detail: `Last update ${age.detail}. Data is still visible but not fresh.`, scope: 'Data' })
+    }
+    if (currentDd >= 10) alerts.push({ level: 'critical', title: `${label} current drawdown high`, detail: `Current DD is ${formatPercent(currentDd)}. Peak DD is ${formatPercent(peakDd)}. Review risk before adding exposure.`, scope: 'Risk' })
+    else if (currentDd >= 5) alerts.push({ level: 'warning', title: `${label} current drawdown watch`, detail: `Current DD is ${formatPercent(currentDd)}. Peak DD is ${formatPercent(peakDd)}.`, scope: 'Risk' })
+    if (floatingPct <= -10) alerts.push({ level: 'critical', title: `${label} floating loss pressure`, detail: `${fmtS(floating)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
+    else if (floatingPct <= -5) alerts.push({ level: 'warning', title: `${label} floating loss watch`, detail: `${fmtS(floating)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
+  })
+  if (weekend.totalTrades > 0 && (weekend.isFridayWindow || weekend.isWeekend)) {
+    alerts.push({ level: 'critical', title: 'Weekend exposure open', detail: `${weekend.totalTrades} trades / ${weekend.totalLots.toFixed(2)} lots still open.`, scope: 'Weekend' })
+  } else if (weekend.totalTrades > 0) {
+    alerts.push({ level: 'info', title: 'Open exposure monitor', detail: `${weekend.totalTrades} trades / ${weekend.totalLots.toFixed(2)} lots currently open.`, scope: 'Weekend' })
+  }
+  ;[['CPU', sysData?.cpu_percent], ['RAM', sysData?.ram_percent], ['Disk', sysData?.disk_percent]].forEach(([label, value]) => {
+    const pct = Number(value || 0)
+    if (pct >= 90) alerts.push({ level: 'critical', title: `${label} usage critical`, detail: `${pct.toFixed(1)}% usage on VPS.`, scope: 'Server' })
+    else if (pct >= 75) alerts.push({ level: 'warning', title: `${label} usage elevated`, detail: `${pct.toFixed(1)}% usage on VPS.`, scope: 'Server' })
+  })
+  const rank = { critical: 0, warning: 1, info: 2 }
+  return alerts.sort((a, b) => rank[a.level] - rank[b.level])
+}
+
+function csvEscape(value) {
+  const str = String(value ?? '')
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+// โ”€โ”€ TRADINGVIEW WIDGETS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function TradingViewNewsWidget() {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!ref.current) return
+    ref.current.innerHTML = ''
+    const widget = document.createElement('div')
+    widget.className = 'tradingview-widget-container__widget'
+    ref.current.appendChild(widget)
+    const script = document.createElement('script')
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js'
+    script.async = true
+    script.innerHTML = JSON.stringify({
+      width: '100%', height: 350, colorTheme: 'dark',
+      isTransparent: true, locale: 'en', importanceFilter: '0,1',
+    })
+    ref.current.appendChild(script)
+    return () => { if (ref.current) ref.current.innerHTML = '' }
+  }, [])
+  return (
+    <div className="rp">
+      <div className="rpl">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none"><path d="M4 11h16M4 7h16M4 15h8" /></svg>
+        Economic Calendar
+      </div>
+      <div ref={ref} style={{ minHeight: 360, marginTop: 8 }} />
+    </div>
+  )
+}
+
+function TradingViewMarketWidget() {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!ref.current) return
+    ref.current.innerHTML = ''
+    const widget = document.createElement('div')
+    widget.className = 'tradingview-widget-container__widget'
+    ref.current.appendChild(widget)
+    const script = document.createElement('script')
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js'
+    script.async = true
+    script.innerHTML = JSON.stringify({
+      colorTheme: 'dark', dateRange: '1D', showChart: false,
+      locale: 'en', isTransparent: true, showSymbolLogo: true,
+      showFloatingTooltip: false, width: '100%', height: 380,
+      tabs: [
+        { title: 'Forex', originalTitle: 'Forex', symbols: [
+          { s: 'FX:XAUUSD', d: 'Gold / XAUUSD' },
+          { s: 'FX:EURUSD', d: 'EUR / USD' },
+          { s: 'FX:GBPUSD', d: 'GBP / USD' },
+          { s: 'FX:USDJPY', d: 'USD / JPY' },
+          { s: 'FX:AUDUSD', d: 'AUD / USD' },
+          { s: 'FX:USDCHF', d: 'USD / CHF' },
+        ]},
+        { title: 'Indices', originalTitle: 'Indices', symbols: [
+          { s: 'FOREXCOM:SPXUSD', d: 'S&P 500' },
+          { s: 'FOREXCOM:NSXUSD', d: 'Nasdaq 100' },
+          { s: 'TVC:DJI', d: 'Dow Jones' },
+        ]},
+      ],
+    })
+    ref.current.appendChild(script)
+    return () => { if (ref.current) ref.current.innerHTML = '' }
+  }, [])
+  return (
+    <div className="rp">
+      <div className="rpl">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none"><path d="M4 18h16M5 15l4-4 4 3 6-8M15 6h4v4" /></svg>
+        Market Overview
+      </div>
+      <div ref={ref} style={{ minHeight: 380, marginTop: 8 }} />
+    </div>
+  )
+}
+
+function TradingViewForexHeatmapWidget() {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!ref.current) return
+    ref.current.innerHTML = ''
+    const widget = document.createElement('div')
+    widget.className = 'tradingview-widget-container__widget'
+    ref.current.appendChild(widget)
+    const script = document.createElement('script')
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-forex-heat-map.js'
+    script.async = true
+    script.innerHTML = JSON.stringify({
+      width: '100%', height: 380,
+      currencies: ['EUR', 'USD', 'JPY', 'GBP', 'CHF', 'AUD', 'CAD', 'NZD', 'CNY'],
+      isTransparent: true, colorTheme: 'dark', locale: 'en',
+      backgroundColor: '#050812',
+    })
+    ref.current.appendChild(script)
+    return () => { if (ref.current) ref.current.innerHTML = '' }
+  }, [])
+  return (
+    <div className="sec" style={{ marginBottom:9 }}>
+      <div className="sec-h">
+        <div><div className="sec-lbl">Currency Strength</div><div className="sec-title">Forex Heatmap</div></div>
+        <span className="chip cb">TradingView Live</span>
+      </div>
+      <div ref={ref} style={{ minHeight: 380, padding: 14 }} />
+    </div>
+  )
+}
+
+// โ”€โ”€ TOOLTIP โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function ChartTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const v = payload[0]?.value;
+  return (
+    <div style={{ background:C.bg3, border:`1px solid ${C.br1}`, borderRadius:6, padding:"6px 11px", fontFamily:C.fn, fontSize:11, color:C.t1 }}>
+      ${v?.toLocaleString("en", { maximumFractionDigits:0 })}
+    </div>
+  );
+}
+
+// โ”€โ”€ COMPONENTS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function AccountNameDialog({ account, value, onChange, onCancel, onSave, saving }) {
+  if (!account) return null
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
+      <form className="name-dialog sec" style={{ width: 400, maxWidth: '90%', margin: 'auto', background: C.bg1 }} onSubmit={onSave} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">Account Label</div>
+            <div className="sec-title">{maskAccountNumber(account.account_number)}</div>
+          </div>
+          <span className="chip cd">{account.broker || 'Broker unknown'}</span>
+        </div>
+        <div style={{ padding: 20 }}>
+          <label style={{ display: 'block', marginBottom: 12, fontSize: 12, color: C.t3, fontFamily: C.fb }}>
+            Display name
+            <input 
+              value={value} 
+              onChange={(event) => onChange(event.target.value)} 
+              placeholder="e.g., Manual Gold, EA Scalper 01" 
+              autoFocus 
+              maxLength={80} 
+              style={{ width: '100%', marginTop: 8, padding: '10px 12px', background: C.bg2, border: `1px solid ${C.br0}`, color: C.t1, borderRadius: 6, fontFamily: C.fn }}
+            />
+          </label>
+          <div style={{ fontSize: 11, color: C.t3, marginBottom: 20 }}>Leave blank to revert to masked account number.</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button className="brtab" onClick={onCancel} type="button">Cancel</button>
+            <button className="btn b-acc" disabled={saving} type="submit">{saving ? 'Saving...' : 'Save name'}</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setLoginError('')
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      })
+      if (!response.ok) throw new Error('Login failed')
+      onLogin(await response.json())
+    } catch {
+      setLoginError('Username or password is incorrect')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="login-shell">
+      <div className="login-panel">
+        <div className="login-brand">
+          <div className="login-grid" />
+          <div className="brand-mark">
+            <div className="sb-icon login-logo">TE</div>
+            <div>
+              <div className="brand-name">The Entity</div>
+              <div className="brand-sub">Forex EA Command Center</div>
+            </div>
+          </div>
+          <div className="login-hero">
+            <div className="login-kicker">Portfolio Monitoring</div>
+            <h1>Control every EA, risk signal, and open position from one terminal.</h1>
+            <p>Live MT5 reporter data, drawdown alerts, weekend exposure checks, and closed performance history in a private dashboard.</p>
+            <div className="login-badges">
+              <span><span className="ldot" /> System Live</span>
+              <span>MT5 WebRequest</span>
+            </div>
+          </div>
+          <div className="login-mini">
+            <div><span>DATA</span><b>Live Sync</b></div>
+            <div><span>RISK</span><b>DD Alerts</b></div>
+            <div><span>VIEW</span><b>Mobile Ready</b></div>
+          </div>
+        </div>
+        <form onSubmit={submit} className="login-card">
+          <div className="login-card-head">
+            <div className="sec-lbl">Secure Access</div>
+            <h2>Sign In</h2>
+            <p>Access your trading command center.</p>
+          </div>
+          <label className="login-field">
+            Username
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="admin or demo" />
+          </label>
+          <label className="login-field">
+            Password
+            <span className="password-wrap">
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter password" />
+              <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
+            </span>
+          </label>
+          {loginError && <div className="login-error">{loginError}</div>}
+          <button className="login-submit" disabled={busy} type="submit">{busy ? 'Signing in...' : 'Login'}</button>
+          <div className="login-footnote">End-to-end dashboard session protected by proxy auth</div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function LoadingSkeleton() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg0, flexDirection: 'column', gap: 20 }}>
+      <div className="sb-icon" style={{ width: 50, height: 50, fontSize: 18, animation: 'pulse 2s infinite' }}>TE</div>
+      <div style={{ color: C.t2, fontFamily: C.fn, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Initializing Command Center...</div>
+    </div>
+  )
+}
+
+function BrokerAccountFilter({ brokers, accounts, selected, onSelect }) {
+  const brokerOptions = [
+    {
+      id: 'all',
+      label: 'All Brokers',
+      logo: 'ALL',
+      asset: '/brokers/all-brokers.svg',
+      tone: 'cyan',
+      count: accounts.length,
+      subtitle: 'All monitored accounts',
+    },
+    ...brokers.map((broker) => {
+      const meta = brokerMeta(broker)
+      return {
+        id: broker,
+        label: meta.label,
+        logo: meta.logo,
+        asset: meta.asset,
+        tone: meta.tone,
+        count: accounts.filter((account) => account.broker === broker).length,
+        subtitle: meta.subtitle,
+      }
+    }),
+  ]
+  return (
+    <div className="broker-filter-card">
+      <div className="broker-filter-head">
+        <span>Broker</span>
+        <b>/ Account Filter</b>
+      </div>
+      <div className="broker-filter-scroll" role="list" aria-label="Broker account filter">
+        {brokerOptions.map((broker) => (
+          <button
+            key={broker.id}
+            type="button"
+            className={`broker-card ${selected === broker.id ? 'on' : ''}`}
+            onClick={() => onSelect(broker.id)}
+            title={broker.subtitle}
+          >
+            <span className={`broker-logo ${broker.tone}`} aria-hidden="true">
+              {broker.asset ? <img src={broker.asset} alt="" loading="lazy" /> : broker.logo}
+            </span>
+            <span className="broker-name">{broker.label}</span>
+            <span className="broker-count">{broker.count} {broker.count === 1 ? 'account' : 'accounts'}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DeleteAccountDialog({ account, confirmation, onConfirmationChange, onCancel, onDelete, deleting }) {
+  if (!account) return null
+  const canDelete = confirmation === 'DELETE' && !deleting
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
+      <form className="delete-dialog sec" onSubmit={onDelete} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">Permanent Portfolio Removal</div>
+            <div className="sec-title">Delete {accountLabel(account)}?</div>
+          </div>
+          <span className="delete-dialog-icon">{Ico.trash}</span>
+        </div>
+        <div className="delete-dialog-body">
+          <div className="delete-warning">
+            <strong>Disable the MT5 Reporter for this account first.</strong>
+            <span>If it remains active, the portfolio will return on the next reporter update.</span>
+          </div>
+          <div className="delete-account-summary">
+            <span>{maskAccountNumber(account.account_number)}</span>
+            <span>{account.broker || 'Unknown broker'}</span>
+          </div>
+          <p>This removes the account, open trades, daily history, and equity snapshots from the dashboard. A server-side backup is created automatically before deletion.</p>
+          <label className="delete-confirm-field">
+            Type <b>DELETE</b> to confirm
+            <input
+              value={confirmation}
+              onChange={(event) => onConfirmationChange(event.target.value)}
+              placeholder="DELETE"
+              autoFocus
+              autoComplete="off"
+            />
+          </label>
+          <div className="delete-dialog-actions">
+            <button className="brtab" onClick={onCancel} disabled={deleting} type="button">Cancel</button>
+            <button className="btn b-danger" disabled={!canDelete} type="submit">
+              {Ico.trash} {deleting ? 'Deleting...' : 'Delete portfolio'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }) {
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    if (open) setQuery('')
+  }, [open])
+
+  const actions = useMemo(() => {
+    const base = [
+      { id: 'go-overview', label: 'Open Overview', meta: 'Portfolio status and equity curve', page: 'overview' },
+      { id: 'go-advisors', label: 'Open Expert Advisors', meta: 'EA cards, risk, and daily performance', page: 'advisors' },
+      { id: 'go-symbols', label: 'Open Symbols', meta: 'Lots, direction, and floating exposure', page: 'symbols' },
+      { id: 'go-trades', label: 'Open Active Trades', meta: 'Open positions and current floating P&L', page: 'trades' },
+      { id: 'go-preview', label: 'Open MT5 Preview', meta: 'Reporter-style account preview', page: 'mt5preview' },
+      { id: 'go-history', label: 'Open History', meta: 'Closed performance and period reports', page: 'history' },
+    ]
+    const admin = isAdmin ? [
+      { id: 'go-reporter', label: 'Open MT5 Reporter', meta: 'Endpoint, API key, and install checklist', page: 'reporter' },
+      { id: 'go-health', label: 'Open System Health', meta: 'Reporter heartbeat and VPS health', page: 'logs' },
+      { id: 'sync-now', label: 'Sync now', meta: 'Refresh dashboard, health, and reporter state', run: onSync },
+    ] : []
+    const accountActions = accounts.slice(0, 8).map((account) => ({
+      id: `account-${account.account_number}`,
+      label: `Find ${accountLabel(account)}`,
+      meta: `${maskAccountNumber(account.account_number)} / ${account.broker || 'Unknown broker'}`,
+      page: 'advisors',
+    }))
+    return [...base, ...admin, ...accountActions]
+  }, [accounts, isAdmin, onSync])
+
+  const filtered = actions.filter((action) => {
+    const needle = `${action.label} ${action.meta}`.toLowerCase()
+    return needle.includes(query.trim().toLowerCase())
+  }).slice(0, 10)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, open])
+
+  if (!open) return null
+  const runAction = (action) => {
+    if (action.page) onNavigate(action.page)
+    if (action.run) action.run()
+    onClose()
+  }
+
+  return (
+    <div className="command-backdrop" role="presentation" onMouseDown={onClose}>
+      <div className="command-panel" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="command-head">
+          <div>
+            <span>Command Palette</span>
+            <b>Jump to pages or run safe actions</b>
+          </div>
+          <kbd>Esc</kbd>
+        </div>
+        <input
+          className="command-input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search page, account, or action..."
+          autoFocus
+        />
+        <div className="command-list">
+          {filtered.length === 0 ? (
+            <div className="command-empty">No matching command.</div>
+          ) : filtered.map((action) => (
+            <button key={action.id} type="button" className="command-item" onClick={() => runAction(action)}>
+              <span>{action.label}</span>
+              <small>{action.meta}</small>
+            </button>
+          ))}
+        </div>
+        <div className="command-foot">
+          <span>Ctrl/⌘ + K</span>
+          <em>{isAdmin ? 'Admin commands enabled' : 'Demo-safe commands only'}</em>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PeriodFilter({ value, onChange, customStart, customEnd, onCustomStart, onCustomEnd, range }) {
+  const label = value === 'custom' && range?.id === 'all' ? 'Set dates' : (range?.label || PERIOD_OPTIONS.find((option) => option.id === value)?.label || 'All Time')
+  return (
+    <div className="period-filter-card">
+      <div className="period-filter-head">
+        <span>Period View</span>
+        <b>{label}</b>
+      </div>
+      <div className="period-tabs" role="group" aria-label="Performance period filter">
+        {PERIOD_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            className={`period-tab${value === option.id ? ' on' : ''}`}
+            onClick={() => onChange(option.id)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {value === 'custom' ? (
+        <div className="custom-period">
+          <input className="fctl" type="date" value={customStart} onChange={(event) => onCustomStart(event.target.value)} />
+          <input className="fctl" type="date" value={customEnd} onChange={(event) => onCustomEnd(event.target.value)} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function WeekendExposureCard({ accounts, compact = false }) {
+  const exposure = buildWeekendExposure(accounts)
+  const tone = exposure.level === 'danger' ? C.red : exposure.level === 'watch' ? C.yel : C.grn
+  const worstRow = exposure.rows[0]
+  return (
+    <div className={compact ? "rp weekend-card" : "sec weekend-card"}>
+      <div className={compact ? "rpl" : "sec-h"} style={compact ? {} : { alignItems:'center' }}>
+        {compact ? 'Weekend Exposure' : (
+          <>
+            <div><div className="sec-lbl">Friday Risk Desk</div><div className="sec-title">Weekend Exposure</div></div>
+            <span className={`badge ${exposure.level === 'danger' ? 'bsell' : exposure.level === 'watch' ? 'bwarn' : 'blive'}`}>{exposure.level === 'clear' ? 'Clear' : 'Watch'}</span>
+          </>
+        )}
+      </div>
+      <div className="weekend-metrics">
+        <div><span>Open Trades</span><b>{exposure.totalTrades}</b></div>
+        <div><span>Open Lots</span><b>{exposure.totalLots.toFixed(2)}</b></div>
+        <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating)}</b></div>
+      </div>
+      <div className="weekend-note" style={{ color:tone }}>
+        {exposure.totalTrades === 0
+          ? 'No open weekend exposure.'
+          : exposure.level === 'danger'
+            ? 'Action required before holding across weekend.'
+            : 'Monitor before Friday close.'}
+      </div>
+      {compact && worstRow && (
+        <div className="weekend-mini-risk">
+          <span>Largest exposure</span>
+          <b>{accountLabel(worstRow.account)}</b>
+          <em>{worstRow.trades} trades / {worstRow.lots.toFixed(2)} lots</em>
+        </div>
+      )}
+      {!compact && (
+        <div className="weekend-list">
+          {exposure.rows.length === 0 ? <div className="empty-note">No open exposure.</div> : exposure.rows.slice(0, 8).map((row) => (
+            <div className="weekend-row" key={row.account.account_number}>
+              <div>
+                <strong>{accountLabel(row.account)}</strong>
+                <span>{maskAccountNumber(row.account.account_number)}</span>
+              </div>
+              <div className="tm">{row.trades} trades</div>
+              <div className="tm">{row.lots.toFixed(2)} lots</div>
+              <div className="tm" style={{ color:pclr(row.floating) }}>{fmtS(row.floating)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RebateSummaryCard({ accounts }) {
+  const rebate = buildRebateSummary(accounts)
+  return (
+    <div className="rp rebate-card">
+      <div className="rpl">Rebate Summary</div>
+      <div className="rpb" style={{ color: rebate.hasData ? C.grn : C.t2 }}>{fmtM(rebate.total)}</div>
+      <div className="rps">
+        {rebate.hasData
+          ? `${rebate.rows.length} accounts reported rebate or cashback fields.`
+          : 'No rebate feed yet. Ready for future broker cashback data.'}
+      </div>
+      <div className="rebate-mini">
+        {(rebate.hasData ? rebate.rows.slice(0, 3) : accounts.slice(0, 3).map((account) => ({ account, rebate: 0, lots: accountClosedLots(account) || 0 }))).map((row) => (
+          <div key={row.account.account_number}>
+            <span>{accountLabel(row.account)}</span>
+            <b>{rebate.hasData ? fmtM(row.rebate) : 'Demo'}</b>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function RiskDeskPage({ accounts, snapshots }) {
+  const exposure = buildWeekendExposure(accounts)
+  const riskRows = buildRiskRows(accounts, snapshots)
+  const clearCount = riskRows.filter((row) => row.level === 'clear').length
+  const watchCount = riskRows.filter((row) => row.level === 'warning').length
+  const criticalCount = riskRows.filter((row) => row.level === 'critical').length
+  const exportRisk = () => {
+    downloadCsv('the-entity-risk-desk.csv', [
+      ['ea_name', 'account', 'broker', 'risk_level', 'score', 'current_dd_pct', 'peak_dd_pct', 'open_trades', 'open_lots', 'floating_pnl', 'floating_pct', 'data_status'],
+      ...riskRows.map((row) => [
+        accountLabel(row.account),
+        row.account.account_number,
+        row.account.broker || '',
+        row.level,
+        row.score,
+        row.currentDd.toFixed(2),
+        row.peakDd.toFixed(2),
+        row.openTrades,
+        row.openLots.toFixed(2),
+        row.floating.toFixed(2),
+        row.floatingPct.toFixed(2),
+        row.age.label,
+      ]),
+    ])
+  }
+  return (
+    <>
+      <div className="risk-hero">
+        <div>
+          <div className="sec-lbl">Friday Clear View</div>
+          <div className="risk-title">Weekend Risk Desk</div>
+          <div className="risk-copy">Use this page before Friday close to find open trades, large floating loss, stale MT5 reporters, and EAs that need attention.</div>
+        </div>
+        <div className="risk-hero-grid">
+          <div><span>Open Trades</span><b>{exposure.totalTrades}</b></div>
+          <div><span>Open Lots</span><b>{exposure.totalLots.toFixed(2)}</b></div>
+          <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating)}</b></div>
+        </div>
+      </div>
+      <div className="alert-summary">
+        <div className="alert-kpi critical"><span>Critical EAs</span><b>{criticalCount}</b></div>
+        <div className="alert-kpi warning"><span>Watch EAs</span><b>{watchCount}</b></div>
+        <div className="alert-kpi info"><span>Clear EAs</span><b>{clearCount}</b></div>
+      </div>
+      <WeekendExposureCard accounts={accounts} />
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Risk Queue</div><div className="sec-title">Which EA needs attention?</div></div>
+          <button className="btn b-acc" onClick={exportRisk}>Export CSV</button>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table className="tbl">
+            <thead><tr><th>EA</th><th>Risk</th><th>Current DD</th><th>Open</th><th>Open Lots</th><th>Floating</th><th>Data</th><th>Action</th></tr></thead>
+            <tbody>
+              {riskRows.length === 0 ? (
+                <tr><td colSpan="8" style={{ textAlign:'center', color:C.t3, padding:20 }}>No accounts to monitor.</td></tr>
+              ) : riskRows.map((row) => (
+                <tr key={row.account.account_number}>
+                  <td>
+                    <div className="tn">{accountLabel(row.account)}</div>
+                    <div className="tm" style={{ color:C.t3 }}>{maskAccountNumber(row.account.account_number)}</div>
+                  </td>
+                  <td><span className={`badge ${row.level === 'critical' ? 'bsell' : row.level === 'warning' ? 'bwarn' : 'blive'}`}>{row.level === 'clear' ? 'Clear' : row.level}</span></td>
+                  <td className="tm" style={{ color:row.currentDd >= 10 ? C.red : row.currentDd >= 5 ? C.yel : C.t2 }}>{formatPercent(row.currentDd)}</td>
+                  <td className="tm">{row.openTrades}</td>
+                  <td className="tm">{row.openLots.toFixed(2)}</td>
+                  <td className="tm" style={{ color:pclr(row.floating), fontWeight:600 }}>{fmtS(row.floating)}</td>
+                  <td><span className={`badge ${row.age.seconds < 330 ? 'blive' : row.age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{row.age.label}</span></td>
+                  <td className="tm" style={{ color:C.t2 }}>
+                    {row.openTrades > 0 ? 'Review before close' : row.level === 'clear' ? 'No action' : 'Check reporter / DD'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// โ”€โ”€ PAGES โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+function DataFreshnessStat({ accounts, lastUpdate }) {
+  const newestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
+  const staleCount = accounts.filter((account) => getAge(account).seconds >= 330).length
+  const label = newestAge === Infinity ? 'Waiting' : staleCount ? `${staleCount} stale` : 'Live'
+  const tone = newestAge === Infinity ? '' : staleCount ? 'r' : 'g'
+  const detail = newestAge === Infinity
+    ? 'no reporter update'
+    : `reporter ${Math.round(newestAge)}s ago${lastUpdate ? ` / dashboard ${lastUpdate.toLocaleTimeString()}` : ''}`
+  return <div className="stat"><div className="sl">Data Freshness</div><div className={`sv ${tone}`}>{label}</div><div className="ss">{detail}</div></div>
+}
+
+function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNavigate, isAdmin = false }) {
+  const riskRows = buildRiskRows(accounts, snapshots)
+  const weekend = buildWeekendExposure(accounts)
+  const criticalRows = riskRows.filter((row) => row.level === 'critical')
+  const watchRows = riskRows.filter((row) => row.level === 'warning')
+  const newestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
+  const staleCount = accounts.filter((account) => getAge(account).seconds >= 330).length
+  const portfolioStatus = accounts.length === 0
+    ? { label: 'Waiting', tone: 'muted', detail: 'No monitored portfolios yet.' }
+    : criticalRows.length
+      ? { label: 'Critical', tone: 'danger', detail: `${criticalRows.length} EA${criticalRows.length === 1 ? '' : 's'} need risk review.` }
+      : watchRows.length
+        ? { label: 'Watch', tone: 'warn', detail: `${watchRows.length} EA${watchRows.length === 1 ? '' : 's'} have open risk to review.` }
+      : staleCount
+        ? { label: 'Watch', tone: 'warn', detail: `${staleCount} reporter${staleCount === 1 ? '' : 's'} delayed or stale.` }
+        : { label: 'Operational', tone: 'good', detail: `All ${accounts.length} monitored portfolios are updating.` }
+  const attention = criticalRows[0] || watchRows[0] || riskRows[0]
+  const floatingRisk = pctOfBalance(summary.floating, summary.totalBalance)
+  const hasWeekendExposure = weekend.totalTrades > 0
+  const briefItems = [
+    {
+      label: 'Portfolio Status',
+      value: portfolioStatus.label,
+      tone: portfolioStatus.tone,
+      detail: portfolioStatus.detail,
+      action: isAdmin ? 'Review health' : 'Investor safe',
+      onClick: isAdmin ? () => onNavigate?.('logs') : undefined,
+    },
+    {
+      label: `${reportingDayLabel(summary.reportingDate)} Result`,
+      value: fmtS(summary.todayPnl),
+      tone: summary.todayPnl >= 0 ? 'good' : 'danger',
+      detail: `${summary.todayTrades} closed deals / ${summary.reportingDate || 'waiting for reporter'}`,
+      action: 'Open history',
+      onClick: () => onNavigate?.('history'),
+    },
+    {
+      label: 'Floating Risk',
+      value: formatPercent(floatingRisk),
+      tone: floatingRisk <= -5 ? 'danger' : floatingRisk <= -2 ? 'warn' : 'good',
+      detail: `${fmtS(summary.floating)} open P&L across ${summary.openTrades} open trades.`,
+      action: 'Open trades',
+      onClick: () => onNavigate?.('trades'),
+    },
+    {
+      label: 'Weekend Exposure',
+      value: hasWeekendExposure ? `${weekend.totalTrades} trades` : 'Clear',
+      tone: hasWeekendExposure ? (weekend.level === 'danger' ? 'danger' : 'warn') : 'good',
+      detail: hasWeekendExposure ? `${weekend.totalLots.toFixed(2)} lots / ${fmtS(weekend.totalFloating)} floating.` : 'No open weekend exposure right now.',
+      action: 'Check preview',
+      onClick: () => onNavigate?.('mt5preview'),
+    },
+    {
+      label: 'Needs Attention',
+      value: attention ? accountLabel(attention.account) : 'None',
+      tone: attention?.level === 'critical' ? 'danger' : attention?.level === 'warning' ? 'warn' : 'good',
+      detail: attention ? `Peak DD ${formatPercent(attention.peakDd)} / ${attention.openLots.toFixed(2)} open lots.` : 'No current risk queue items.',
+      action: 'Open EAs',
+      onClick: () => onNavigate?.('advisors'),
+    },
+  ]
+
+  return (
+    <div className="ops-brief" aria-label="Operational command brief">
+      <div className="ops-brief-head">
+        <div>
+          <span>Command Brief</span>
+          <b>What needs attention right now?</b>
+        </div>
+        <em>{lastUpdate ? `Dashboard refreshed ${lastUpdate.toLocaleTimeString()}` : 'Waiting for dashboard refresh'}</em>
+      </div>
+      <div className="ops-brief-grid">
+        {briefItems.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            className={`ops-card ${item.tone}`}
+            onClick={item.onClick}
+            disabled={!item.onClick}
+          >
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.detail}</small>
+            <em>{item.action}</em>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AttentionRequired({ accounts, snapshots = [] }) {
+  const rows = buildRiskRows(accounts, snapshots).filter((row) => row.level !== 'clear').slice(0, 5)
+  return (
+    <div className="sec attention-sec">
+      <div className="sec-h">
+        <div><div className="sec-lbl">Admin Attention</div><div className="sec-title">Attention Required</div></div>
+        <span className={`badge ${rows.some((row) => row.level === 'critical') ? 'bsell' : rows.length ? 'bwarn' : 'blive'}`}>{rows.length ? `${rows.length} to review` : 'Clear'}</span>
+      </div>
+      <div className="attention-list">
+        {rows.length === 0 ? <div className="empty-note">No current drawdown, floating-loss, or reporter-freshness alerts.</div> : rows.map((row) => (
+          <div className={`attention-row ${row.level}`} key={row.account.account_number}>
+            <div>
+              <strong>{accountLabel(row.account)}</strong>
+              <span>{row.age.label} / Current DD {formatPercent(row.currentDd)}</span>
+            </div>
+            <div><span>Floating</span><b style={{ color:pclr(row.floating) }}>{fmtS(row.floating)}</b></div>
+            <div><span>Open</span><b>{row.openTrades} / {row.openLots.toFixed(2)} lots</b></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts, monthlyRows, snapshots = [], sysData, lastUpdate, periodRange, isAdmin = false, onNavigate }) {
+  const [tr, setTr] = useState("ALL")
+  const chartWrapRef = useRef(null)
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
+  const [selectedHeatmapDate, setSelectedHeatmapDate] = useState(null)
+  const [expandedMonth, setExpandedMonth] = useState(null)
+  
+  // Format equity series for recharts
+  const chartPoints = equitySeries.length >= 2 ? equitySeries : [{ date: 'Baseline', value: 0 }, { date: 'Now', value: 0 }]
+  const mappedEquity = chartPoints.map((pt, i) => ({ i: pt.date, v: pt.value }))
+  
+  // Slicing logic
+  const slices = { ALL: Infinity, "30D": 30, "7D": 7, "24H": 4, "6H": 2, "1H": 1 }
+  const requestedSize = slices[tr] || Infinity
+  const visibleData = requestedSize === Infinity ? mappedEquity : mappedEquity.slice(-requestedSize)
+
+  useEffect(() => {
+    const node = chartWrapRef.current
+    if (!node) return undefined
+
+    const update = () => {
+      const rect = node.getBoundingClientRect()
+      setChartSize({
+        width: Math.max(0, Math.floor(rect.width)),
+        height: Math.max(0, Math.floor(rect.height)),
+      })
+    }
+
+    update()
+    if (typeof ResizeObserver === "undefined") {
+      const timer = window.setTimeout(update, 50)
+      return () => window.clearTimeout(timer)
+    }
+
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  // Heatmap logic
+  const history = collectHistory(filteredAccounts)
+  const byDate = new Map()
+  history.forEach((row) => {
+    const item = byDate.get(row.date) || { date: row.date, pnl: 0, trades: 0, lots: 0, rows: [] }
+    item.pnl += Number(row.daily_profit || 0)
+    item.trades += Number(row.daily_trades || 0)
+    item.lots += Number(row.daily_lots || 0)
+    item.rows.push(row)
+    byDate.set(row.date, item)
+  })
+  
+  const dates = []
+  const start = new Date()
+  start.setDate(start.getDate() - 364)
+  for (let index = 0; index < 365; index += 1) {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    dates.push(dateKey(date))
+  }
+  
+  // Arrange heatmap into 7 rows (days) x 53 cols (weeks)
+  const hmData = Array.from({ length: 7 }, () => Array(53).fill(null))
+  dates.forEach((dateStr, idx) => {
+    const dateObj = new Date(dateStr)
+    const dayOfWeek = dateObj.getDay() // 0 = Sunday
+    const weekIdx = Math.floor(idx / 7)
+    if (weekIdx < 53) {
+      hmData[dayOfWeek][weekIdx] = byDate.get(dateStr) || { date: dateStr, pnl: null, trades: 0, lots: 0, rows: [] }
+    }
+  })
+
+  const tradeDays = Array.from(byDate.values()).filter((day) => day.trades > 0)
+  const totalPnl = tradeDays.reduce((sum, day) => sum + day.pnl, 0)
+  const best = tradeDays.length ? Math.max(...tradeDays.map((day) => day.pnl)) : 0
+  const worst = tradeDays.length ? Math.min(...tradeDays.map((day) => day.pnl)) : 0
+  const selectedHeatmapDay = selectedHeatmapDate ? byDate.get(selectedHeatmapDate) : null
+
+  // Split accounts logic
+  const usdGroup = filteredAccounts.filter((a) => accountCurrency(a) === 'USD')
+  const usdBalance = usdGroup.reduce((sum, a) => sum + Number(a.balance || 0), 0)
+  const usdEquity = usdGroup.reduce((sum, a) => sum + Number(a.equity || 0), 0)
+
+  const uscGroup = filteredAccounts.filter((a) => accountCurrency(a) === 'USC')
+  const uscBalance = uscGroup.reduce((sum, a) => sum + Number(a.balance || 0), 0)
+  const uscEquity = uscGroup.reduce((sum, a) => sum + Number(a.equity || 0), 0)
+
+  const staleAccounts = filteredAccounts.filter((account) => getAge(account).seconds > 1800)
+  const newestReporterAge = filteredAccounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
+  const maxReturn = Math.max(1, ...rankings.map((row) => Math.abs(row.returnPct)))
+  const rebateSummary = buildRebateSummary(filteredAccounts)
+  const periodWaiting = periodRange?.id === 'custom' && periodRange.incomplete
+  const latestDayLabel = reportingDayLabel(stats.reportingDate)
+  const latestDayMeta = stats.reportingDate ? stats.reportingDate : 'waiting for reporter data'
+
+  return (
+    <>
+      <OperationalBrief
+        accounts={filteredAccounts}
+        summary={summary}
+        snapshots={snapshots}
+        lastUpdate={lastUpdate}
+        isAdmin={isAdmin}
+        onNavigate={onNavigate}
+      />
+
+      <div className="kpi-row">
+        {[
+          { lbl:"Total Balance", val:fmtM(stats.totalBalance), cls:"", bar:C.acc, meta:`Equity ${fmtM(stats.totalEquity)} | Float ${fmtS(stats.floating)}` },
+          { lbl:"Floating P&L",  val:fmtS(stats.floating),     cls:stats.floating >= 0 ? "g" : "r", bar:stats.floating >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.floating, stats.totalBalance))} open risk` },
+          { lbl:"Monthly P&L",   val:fmtS(stats.monthPnl),     cls:stats.monthPnl >= 0 ? "g" : "r", bar:stats.monthPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.monthPnl, stats.totalBalance))} this month` },
+          { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
+          { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
+        ].map(k => (
+          <div className="kpi" key={k.lbl}>
+            <div className="kbar" style={{ background: k.bar }} />
+            <div className="kl">{k.lbl}</div>
+            <div className={`kv ${k.cls}`}>{k.val}</div>
+            <div className="km">{k.meta}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="period-insight">
+        <div>
+          <span>Selected Period</span>
+          <b>{periodRange?.label || 'All Time'}</b>
+        </div>
+        <div>
+          <span>Period P&L</span>
+          <b style={{ color:periodWaiting ? C.t3 : pclr(stats.selectedPnl) }}>{periodWaiting ? 'Waiting for date range' : fmtS(stats.selectedPnl)}</b>
+        </div>
+        <div>
+          <span>Closed Deals / Lots</span>
+          <b>{periodWaiting ? '-- / --' : `${stats.selectedTrades} / ${stats.selectedLots.toFixed(2)}`}</b>
+        </div>
+        <div>
+          <span>Profitable / Loss Account-Days</span>
+          <b>{periodWaiting ? '-- / --' : `${stats.selectedWinDays} / ${stats.selectedLossDays}`}</b>
+        </div>
+        <div>
+          <span>Best / Worst</span>
+          <b>{periodWaiting ? '-- / --' : <><em style={{ color:C.grn }}>{fmtS(stats.selectedBest)}</em> <em style={{ color:C.red }}>{fmtS(stats.selectedWorst)}</em></>}</b>
+        </div>
+      </div>
+
+      <div className="stat-row">
+        {[
+          { l:"Active EAs",    v:summary.activeEas.toString(),  c:"a", s:`${summary.openTrades} open trades` },
+          { l:`Closed Deals - ${reportingDayLabel(summary.reportingDate)}`, v:summary.todayTrades.toString(),c:"", s:summary.reportingDate || "waiting for reporter data" },
+          { l:"Closed Lots",   v:summary.totalLots.toFixed(2),  c:"",  s:"closed volume" },
+          { l:"Live Ports",    v:summary.liveAccounts.toString(),c:"a",s:"currently active" },
+          { l:"Open Trades",   v:summary.openTrades.toString(), c:"", s:"currently running" },
+          { l:"Profitable Day Rate", v:formatPercent(summary.overallWinRate), c:"g", s:`${summary.tradeDays} account-days with deals` },
+        ].map(s => (
+          <div className="stat" key={s.l}>
+            <div className="sl">{s.l}</div>
+            <div className={`sv ${s.c}`}>{s.v}</div>
+            <div className="ss">{s.s}</div>
+          </div>
+        ))}
+      </div>
+
+      {isAdmin && <AttentionRequired accounts={filteredAccounts} snapshots={snapshots} />}
+
+      <div className="acct-row">
+        <div className="ac">
+          <div className="ach2">
+            <span className="an">USD Accounts</span>
+            <span className="chip ca">{usdGroup.length} ports</span>
+          </div>
+          <div className="ag">
+            {[["Balance",fmtM(usdBalance)],["Equity",fmtM(usdEquity)],["Floating",fmtS(usdEquity - usdBalance)]].map(([l,v]) => (
+              <div key={l}><div className="asl">{l}</div><div className="asv" style={l==="Floating"?{color:pclr(usdEquity - usdBalance)}:{}}>{v}</div></div>
+            ))}
+          </div>
+        </div>
+        {uscGroup.length > 0 && (
+          <div className="ac">
+            <div className="ach2">
+              <span className="an">USC Accounts</span>
+              <span className="chip cd">{uscGroup.length} ports</span>
+            </div>
+            <div className="ag">
+              {[["Balance",`${uscBalance.toLocaleString()}c`],["Equity",`${uscEquity.toLocaleString()}c`],["Floating",`${(uscEquity - uscBalance).toLocaleString()}c`]].map(([l,v]) => (
+                <div key={l}><div className="asl">{l}</div><div className="asv" style={l==="Floating"?{color:pclr(uscEquity - uscBalance)}:{}}>{v}</div></div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="ov">
+        <div>
+          <div className="sec" style={{ marginBottom:9 }}>
+            <div className="sec-h">
+              <div>
+                <div className="sec-lbl">Equity Curve</div>
+                <div className="sec-title">{mappedEquity.length > 0 ? fmtM(mappedEquity[mappedEquity.length - 1].v) : "$0.00"}</div>
+              </div>
+              <div className="tbts">
+                {["1H","6H","24H","7D","30D","ALL"].map(t => (
+                  <button key={t} className={`tbt${tr===t?" on":""}`} onClick={() => setTr(t)}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="cwrap" ref={chartWrapRef}>
+              {chartSize.width > 0 && chartSize.height > 0 ? (
+                <AreaChart width={chartSize.width} height={chartSize.height} data={visibleData} margin={{ top:4, right:46, left:0, bottom:0 }}>
+                  <defs>
+                    <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={C.acc} stopOpacity={0.22} />
+                      <stop offset="95%" stopColor={C.acc} stopOpacity={0}    />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="i" hide />
+                  <YAxis
+                    orientation="right"
+                    tickLine={false} axisLine={false}
+                    tick={{ fill:C.t3, fontSize:9, fontFamily:"JetBrains Mono" }}
+                    tickFormatter={v => "$"+Math.round(v/1000)+"K"}
+                    domain={["auto","auto"]}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="v" stroke={C.acc} strokeWidth={1.5} fill="url(#eg)" dot={false} />
+                </AreaChart>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="sec">
+            <div className="sec-h">
+              <div>
+                <div className="sec-lbl">EA Performance Comparison</div>
+                <div className="sec-title">Top Portfolios</div>
+              </div>
+              <span className="chip ca">{rankings.length} ranked</span>
+            </div>
+            {rankings.length === 0 ? <div style={{padding:20, color:C.t3, fontSize:12, textAlign:'center'}}>No ranking data available yet.</div> : null}
+            {rankings.length > 0 ? (
+              <div className="perf-bars">
+                {rankings.slice(0, 8).map((p, idx) => {
+                  const positive = p.returnPct >= 0
+                  return (
+                    <div className="perf-row" key={`perf-${p.account.account_number}`}>
+                      <div className="perf-name"><span>{idx + 1}</span>{accountLabel(p.account)}</div>
+                      <div className="perf-track">
+                        <div
+                          className={`perf-fill ${positive ? 'positive' : 'negative'}`}
+                          style={{ width: `${Math.max(2, (Math.abs(p.returnPct) / maxReturn) * 100).toFixed(1)}%` }}
+                        />
+                      </div>
+                      <div className="perf-value" style={{ color: positive ? C.grn : C.red }}>{p.returnPct.toFixed(1)}%</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+            {rankings.slice(0, 5).map((p, idx) => (
+              <div className="pi" key={p.account.account_number}>
+                <div className={`rk r${idx+1 < 4 ? idx+1 : 4}`}>{idx+1}</div>
+                <div className="pif">
+                  <div className="pn">{accountLabel(p.account)}</div>
+                  <div className="pb">{p.account.broker || 'Unknown broker'}</div>
+                </div>
+                <div className="pst">
+                  <div className="ppct">{p.returnPct.toFixed(2)}%</div>
+                  <div className="pbar"><div className="pfill" style={{ width:`${Math.min(100, (p.returnPct/Math.max(1, rankings[0].returnPct))*100).toFixed(1)}%` }} /></div>
+                  <div className="ppnl">{fmtS(p.closedProfit)}</div>
+                  <div className="pwin">{p.winRate.toFixed(0)}% profitable account-days</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="rp">
+            <div className="rpl"><span className={staleAccounts.length ? "" : "ldot"} />Data Freshness</div>
+            <div style={{ fontFamily:C.fh, fontSize:17, fontWeight:600, color: staleAccounts.length ? C.red : C.grn, marginBottom:4 }}>
+              {staleAccounts.length ? `${staleAccounts.length} stale` : 'Live'}
+            </div>
+            <div className="rps">{staleAccounts.length ? 'Reporter has not pushed current MT5 data for some accounts.' : 'All monitored accounts are updating normally.'}</div>
+            <div className="freshness-meta">
+              <span>Reporter {newestReporterAge === Infinity ? 'waiting' : `${Math.round(newestReporterAge)}s ago`}</span>
+              <span>Dashboard {lastUpdate ? lastUpdate.toLocaleTimeString() : 'waiting'}</span>
+            </div>
+          </div>
+          {isAdmin && (
+            <>
+              <div className="rp">
+                <div className="rpl">Server Health</div>
+                {[["CPU",sysData?.cpu_percent || 0],["RAM",sysData?.ram_percent || 0],["Disk",sysData?.disk_percent || 0]].map(([l,v]) => (
+                  <div className="sv2" key={l}>
+                    <span className="svl">{l}</span>
+                    <div className="svb"><div className="svf" style={{ width:`${Math.max(v,0.5)}%`, background:resourceTone(v) }} /></div>
+                    <span className="svv" style={{ color:resourceTone(v) }}>{v.toFixed(2)}%</span>
+                  </div>
+                ))}
+              </div>
+              <div className="rp">
+                <div className="rpl">Last Dashboard Sync</div>
+                <div style={{ fontFamily:C.fn, fontSize:18, fontWeight:600, color:C.t1, marginTop:4 }}>{lastUpdate ? lastUpdate.toLocaleTimeString() : 'Waiting'}</div>
+              </div>
+            </>
+          )}
+          <WeekendExposureCard accounts={filteredAccounts} compact />
+          {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
+        </div>
+      </div>
+
+      <div className="sec" style={{ marginBottom:9 }}>
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">Daily P&L Heatmap</div>
+            <div className="sec-title">52-week trading calendar</div>
+          </div>
+          <span className="chip cd">{tradeDays.length} trading days</span>
+        </div>
+        <div className="hmw">
+          {hmData.map((row, d) => (
+            <div className="hmrow" key={d}>
+              {row.map((cell, w) => {
+                const value = cell?.pnl
+                const label = cell?.date || ''
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`hmc${selectedHeatmapDate === cell?.date ? ' on' : ''}`}
+                    style={{ background:hmClr(value) }}
+                    title={value != null ? `${label} ${fmtS(value)} / ${cell.trades} closed deals` : `${label} No closed deals`}
+                    onClick={() => label && setSelectedHeatmapDate(label)}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
+        {selectedHeatmapDay ? (
+          <div className="heatmap-detail">
+            <div>
+              <span>{selectedHeatmapDay.date}</span>
+              <b style={{ color:pclr(selectedHeatmapDay.pnl) }}>{fmtS(selectedHeatmapDay.pnl)}</b>
+              <em>{selectedHeatmapDay.trades} closed deals / {selectedHeatmapDay.lots.toFixed(2)} lots</em>
+            </div>
+            <div className="heatmap-detail-list">
+              {selectedHeatmapDay.rows.slice(0, 5).map((row) => (
+                <div key={`${row.account_number}-${row.date}`}>
+                  <span>{row.name}</span>
+                  <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
+                  <em>{Number(row.daily_trades || 0)} closed deals</em>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="heatmap-detail muted">Select any trading day to inspect account-level P&L.</div>
+        )}
+        <div className="hmst">
+          <div><div className="sl" style={{marginBottom:3}}>Total P&L</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color: totalPnl >= 0 ? C.grn : C.red}}>{fmtS(totalPnl)}</div></div>
+          <div><div className="sl" style={{marginBottom:3}}>Best Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.grn}}>{fmtS(best)}</div></div>
+          <div><div className="sl" style={{marginBottom:3}}>Worst Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.red}}>{fmtS(worst)}</div></div>
+        </div>
+      </div>
+
+      <div className="sec">
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">Monthly P&L Summary</div>
+            <div className="sec-title">Normalized account performance</div>
+          </div>
+          <span className="chip cd">{monthlyRows.length} months</span>
+        </div>
+        {monthlyRows.length === 0 ? <div style={{padding:20, color:C.t3, fontSize:12, textAlign:'center'}}>No monthly data available.</div> : (
+          <div style={{overflowX:'auto'}}>
+            <table className="tbl">
+              <thead><tr><th>Month</th><th>P&L</th><th>Closed Deals</th><th>Profitable / Loss Account-Days</th><th>Best</th><th>Worst</th></tr></thead>
+              <tbody>
+                {monthlyRows.map(row => (
+                  <React.Fragment key={row.month}>
+                    <tr className="expandable-row" onClick={() => setExpandedMonth((current) => current === row.month ? null : row.month)}>
+                    <td data-label="Month" className="tm"><button type="button" className="expand-btn">{expandedMonth === row.month ? '-' : '+'}</button>{row.month}</td>
+                    <td data-label="P&L" className="tm" style={{color:row.pnl>=0?C.grn:C.red,fontWeight:600}}>{fmtS(row.pnl)}</td>
+                    <td data-label="Closed Deals" className="tm">{row.trades}</td>
+                    <td data-label="Profitable / Loss Account-Days" className="tm" style={{color:C.grn}}>{row.winDays} / {row.lossDays}</td>
+                    <td data-label="Best" className="tm" style={{color:C.grn}}>{fmtS(row.bestDay || 0)}</td>
+                    <td data-label="Worst" className="tm" style={{color:C.red}}>{fmtS(row.worstDay || 0)}</td>
+                    </tr>
+                    {expandedMonth === row.month ? (
+                      <tr className="month-detail-row">
+                        <td colSpan="6">
+                          <div className="month-detail-grid">
+                            {row.accounts.slice(0, 8).map((account) => (
+                              <div key={`${row.month}-${account.account_number}`}>
+                                <span>{account.name}</span>
+                                <b style={{ color:pclr(account.pnl) }}>{fmtS(account.pnl)}</b>
+                                <em>{account.trades} closed deals / {account.lots.toFixed(2)} lots</em>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function MiniLineChart({ points }) {
+  const width = 720
+  const height = 150
+  const chartPoints = points.length >= 2 ? points : [{ date: 'Baseline', value: 0 }, { date: 'Now', value: 0 }]
+  const values = chartPoints.map((point) => Number(point.value || 0))
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const coords = chartPoints.map((point, index) => {
+    const x = chartPoints.length === 1 ? width : (index / (chartPoints.length - 1)) * width
+    const y = height - ((Number(point.value || 0) - min) / range) * (height - 26) - 13
+    return { ...point, x, y }
+  })
+  const pointString = coords.map((coord) => `${coord.x.toFixed(1)},${coord.y.toFixed(1)}`).join(' ')
+  const area = `0,${height} ${pointString} ${width},${height}`
+  return (
+    <svg className="detail-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Selected EA equity trend">
+      <defs>
+        <linearGradient id="detailLineFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={C.acc} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={C.acc} stopOpacity="0.03" />
+        </linearGradient>
+      </defs>
+      <path d={`M ${area} Z`} fill="url(#detailLineFill)" />
+      <polyline points={pointString} fill="none" stroke={C.acc} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      {coords.slice(-1).map((coord) => <circle key={coord.date} cx={coord.x} cy={coord.y} r="4" />)}
+    </svg>
+  )
+}
+
+function MiniPnlBars({ points, balance = 0 }) {
+  const [activeIndex, setActiveIndex] = useState(null)
+  const width = 360
+  const height = 126
+  const maxAbs = Math.max(1, ...points.map((point) => Math.abs(Number(point.value || 0))))
+  const hasPositive = points.some((point) => Number(point.value || 0) > 0)
+  const hasNegative = points.some((point) => Number(point.value || 0) < 0)
+  const plotTop = 14
+  const plotBottom = height - 20
+  const baseline = hasPositive && hasNegative
+    ? Math.round((plotTop + plotBottom) / 2)
+    : hasNegative
+      ? plotTop + 2
+      : plotBottom - 2
+  const slot = width / Math.max(points.length, 1)
+  const dense = points.length > 8
+  const barWidth = Math.min(dense ? 20 : 32, slot * (dense ? 0.58 : 0.48))
+  const availableHeight = hasPositive && hasNegative
+    ? Math.max(12, Math.min(baseline - plotTop, plotBottom - baseline) - 6)
+    : hasNegative
+      ? Math.max(12, plotBottom - baseline - 6)
+      : Math.max(12, baseline - plotTop - 6)
+  const safeBalance = Math.abs(Number(balance || 0))
+  const percentOfBalance = (value) => safeBalance > 0 ? (Number(value || 0) / safeBalance) * 100 : null
+  const shortPercent = (value) => {
+    const percent = percentOfBalance(value)
+    if (percent === null) return '--'
+    const decimals = Math.abs(percent) >= 100 ? 0 : 1
+    return `${percent >= 0 ? '+' : ''}${percent.toFixed(decimals)}%`
+  }
+  const activePoint = activeIndex === null ? null : points[activeIndex]
+  const activeValue = Number(activePoint?.value || 0)
+  const activePercent = percentOfBalance(activeValue)
+  const activeX = activeIndex === null ? 0 : activeIndex * slot + slot / 2
+  const tooltipWidth = 156
+  const tooltipX = Math.max(2, Math.min(width - tooltipWidth - 2, activeX - tooltipWidth / 2))
+  return (
+    <svg
+      className="mini-pnl-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Period P&L chart with percentage of current balance"
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'touch') setActiveIndex(null)
+      }}
+    >
+      <line x1="0" x2={width} y1={baseline} y2={baseline} className="mini-axis" />
+      {points.map((point, index) => {
+        const value = Number(point.value || 0)
+        const barHeight = value === 0 ? 0 : Math.max(5, (Math.abs(value) / maxAbs) * availableHeight)
+        const x = index * slot + (slot - barWidth) / 2
+        const y = value >= 0 ? baseline - barHeight : baseline
+        const valueLabelY = value >= 0 ? Math.max(10, y - 5) : Math.min(height - 19, baseline + barHeight + 10)
+        return (
+          <g
+            className={`mini-bar-group ${activeIndex === index ? 'active' : ''}`}
+            key={point.key || point.label}
+            tabIndex="0"
+            role="button"
+            aria-label={`${point.key || point.label}: ${fmtS(value)}, ${shortPercent(value)} of current balance`}
+            onPointerEnter={() => setActiveIndex(index)}
+            onFocus={() => setActiveIndex(index)}
+            onBlur={() => setActiveIndex(null)}
+          >
+            <rect
+              className="mini-hit-area"
+              x={index * slot}
+              y="0"
+              width={slot}
+              height={height}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                setActiveIndex(index)
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                setActiveIndex(index)
+              }}
+            />
+            {value !== 0 ? <rect className={value >= 0 ? 'mini-bar positive' : 'mini-bar negative'} x={x} y={y} width={barWidth} height={barHeight} rx="3" /> : null}
+            {value !== 0 ? (
+              <text
+                className={`mini-pct-label ${value >= 0 ? 'positive' : 'negative'} ${dense ? 'dense' : ''}`}
+                x={x + barWidth / 2}
+                y={valueLabelY}
+                textAnchor="middle"
+              >
+                {shortPercent(value)}
+              </text>
+            ) : null}
+            <text x={x + barWidth / 2} y={height - 4} textAnchor="middle">{point.label}</text>
+          </g>
+        )
+      })}
+      {activePoint ? (
+        <g className="mini-chart-tooltip" pointerEvents="none">
+          <rect x={tooltipX} y="2" width={tooltipWidth} height="48" rx="7" />
+          <text className="mini-tooltip-title" x={tooltipX + 10} y="17">{activePoint.key || activePoint.label}</text>
+          <text className={activeValue >= 0 ? 'mini-tooltip-value positive' : 'mini-tooltip-value negative'} x={tooltipX + 10} y="32">
+            {activePercent === null ? '--' : `${activePercent >= 0 ? '+' : ''}${activePercent.toFixed(2)}%`}
+          </text>
+          <text className="mini-tooltip-money" x={tooltipX + tooltipWidth - 10} y="32" textAnchor="end">{fmtS(activeValue)}</text>
+          <text className="mini-tooltip-note" x={tooltipX + 10} y="43">% of current balance</text>
+        </g>
+      ) : null}
+    </svg>
+  )
+}
+
+function PeriodCard({ label, stats, balance }) {
+  const positive = Number(stats.pnl || 0) >= 0
+  return (
+    <div className={`period-card ${positive ? 'positive' : 'negative'}`}>
+      <div className="period-card-head">
+        <span>{label}</span>
+        <strong>{fmtS(stats.pnl)}</strong>
+      </div>
+      <div className="period-meta">
+        <span>{stats.trades} closed deals</span>
+        <span>{Number(stats.lots || 0).toFixed(2)} lots</span>
+      </div>
+      <MiniPnlBars points={stats.series} balance={balance} />
+    </div>
+  )
+}
+
+function AccountDrilldown({ account, snapshots = [] }) {
+  if (!account) return null
+  const stats = buildAccountPeriodStats(account)
+  const equityPoints = buildEquitySeries([account], snapshots).slice(-180)
+  const floating = Number(account.equity || 0) - Number(account.balance || 0)
+  const closedProfit = accountClosedProfit(account)
+  const profile = inferEaProfile(account, snapshots)
+  const openLots = accountOpenLots(account)
+  const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
+  const closedLots = accountClosedLots(account)
+  const recentDays = (account.daily_history || []).slice(0, 7)
+  return (
+    <div className="ea-detail" id="ea-detail">
+      <div className="ea-detail-head">
+        <div>
+          <div className="sec-lbl">Selected Expert Advisor</div>
+          <div className="ea-detail-title">{accountLabel(account)}</div>
+          <div className="ea-detail-sub">{maskAccountNumber(account.account_number)} | {account.broker || 'Unknown broker'}</div>
+          <div className="tag-row">
+            <span className="mini-tag">{profile.strategy}</span>
+            <span className={`mini-tag risk-${profile.level}`}>{profile.risk}</span>
+          </div>
+        </div>
+        <div className="ea-detail-dd">
+          <span>Peak DD</span>
+          <strong>{formatPercent(accountMaxDrawdown(account, snapshots))}</strong>
+        </div>
+      </div>
+      <div className="ea-detail-grid">
+        <div className="ea-equity-card">
+          <div className="detail-stat-row">
+            <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
+            <div><span>Equity</span><b>{fmtM(account.equity)}</b></div>
+            <div><span>Floating</span><b style={{ color:pclr(floating) }}>{fmtS(floating)}</b></div>
+            <div><span>Total Closed P&L</span><b style={{ color:pclr(closedProfit) }}>{fmtS(closedProfit)}</b></div>
+          </div>
+          <MiniLineChart points={equityPoints} />
+          <div className="detail-risk-row">
+            <div><span>Open Trades</span><b>{openTrades}</b></div>
+            <div><span>Open Lots</span><b>{openLots.toFixed(2)}</b></div>
+            <div><span>Closed Lots</span><b>{fmtLots(closedLots)}</b></div>
+            <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
+          </div>
+        </div>
+        <div className="period-grid">
+          <PeriodCard label={`${reportingDayLabel(stats.today.reportingDate)} Profit / Loss`} stats={stats.today} balance={account.balance} />
+          <PeriodCard label="Weekly Profit / Loss" stats={stats.week} balance={account.balance} />
+          <PeriodCard label="Monthly Profit / Loss" stats={stats.month} balance={account.balance} />
+        </div>
+      </div>
+      <div className="detail-history">
+        <div className="sec-lbl">Recent Daily Performance</div>
+        <div className="detail-history-list">
+          {recentDays.length === 0 ? <div className="empty-note">No daily history for this EA yet.</div> : recentDays.map((row) => (
+            <div className="detail-day" key={`${account.account_number}-${row.date}`}>
+              <span>{row.date}</span>
+              <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
+              <em>{Number(row.daily_trades || 0)} closed deals</em>
+              <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmin }) {
+  const [sortField, setSortField] = useState('equity')
+  const [sortAsc, setSortAsc] = useState(false)
+  const [selectedAccount, setSelectedAccount] = useState(null)
+  
+  const handleSort = (field) => {
+    if (sortField === field) setSortAsc(!sortAsc)
+    else { setSortField(field); setSortAsc(false) }
+  }
+  
+  const sortedAccounts = useMemo(() => {
+    return [...accounts].sort((a, b) => {
+      let valA, valB
+      if (sortField === 'equity') { valA = Number(a.equity||0); valB = Number(b.equity||0) }
+      else if (sortField === 'balance') { valA = Number(a.balance||0); valB = Number(b.balance||0) }
+      else if (sortField === 'floating') { valA = Number(a.equity||0)-Number(a.balance||0); valB = Number(b.equity||0)-Number(b.balance||0) }
+      else if (sortField === 'dd') { valA = accountMaxDrawdown(a, snapshots); valB = accountMaxDrawdown(b, snapshots) }
+      else if (sortField === 'name') { valA = accountLabel(a); valB = accountLabel(b) }
+      
+      if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      return sortAsc ? valA - valB : valB - valA
+    })
+  }, [accounts, sortField, sortAsc])
+
+  const selectedAccountData = accounts.find((account) => account.account_number === selectedAccount) || accounts[0] || null
+  const selectAccount = (accountNumber) => {
+    setSelectedAccount(accountNumber)
+    window.setTimeout(() => {
+      document.getElementById('ea-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 30)
+  }
+
+  return (
+    <>
+      <div className="eagrid">
+        {sortedAccounts.map(ea => {
+          const floating = Number(ea.equity || 0) - Number(ea.balance || 0)
+          const age = getAge(ea)
+          const dailyProfit = accountTodayProfit(ea)
+          const todayTrades = accountTodayTrades(ea)
+          const todayLots = accountTodayLots(ea)
+          const maxDrawdown = accountMaxDrawdown(ea, snapshots)
+          const openLots = accountOpenLots(ea)
+          const isSelected = selectedAccountData?.account_number === ea.account_number
+          const profile = inferEaProfile(ea, snapshots)
+          
+          return (
+            <div className={`eac ${isSelected ? 'selected' : ''}`} key={ea.account_number} onClick={() => selectAccount(ea.account_number)}>
+              <div className="eatop" style={{ background: profile.level === 'high' ? C.red : profile.level === 'medium' ? C.yel : floating >= 0 ? C.grn : C.blu }} />
+              <div className="each">
+                <div style={{minWidth:0, paddingRight:10}}>
+                  <div className="eaname" style={{display:'flex', alignItems:'center', gap:6}}>
+                    <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{accountLabel(ea)}</span>
+                    {isAdmin && (
+                      <span className="ea-admin-actions">
+                        <button aria-label={`Edit ${accountLabel(ea)} name`} title="Edit display name" onClick={(event) => { event.stopPropagation(); onEditName(ea) }}>{Ico.edit}</button>
+                        <button className="danger" aria-label={`Delete ${accountLabel(ea)} portfolio`} title="Delete portfolio" onClick={(event) => { event.stopPropagation(); onDeleteAccount(ea) }}>{Ico.trash}</button>
+                      </span>
+                    )}
+                  </div>
+                  <div className="eaacct">{maskAccountNumber(ea.account_number)}</div>
+                  <div className="eabkr">{ea.broker || 'Unknown broker'}</div>
+                  <div className="tag-row">
+                    <span className="mini-tag">{profile.strategy}</span>
+                    <span className={`mini-tag risk-${profile.level}`}>{profile.risk}</span>
+                  </div>
+                </div>
+                <span className={`badge ${age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{age.label}</span>
+              </div>
+              <div className="eakg">
+                {[
+                  ["Balance",   fmtM(ea.balance),  ""],
+                  ["Equity",    fmtM(ea.equity),   ""],
+                  ["Peak DD",   maxDrawdown.toFixed(2)+"%", maxDrawdown>5?"r":"y"],
+                  ["Floating",  fmtS(floating),    floating>=0?"g":"r"],
+                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} P&L`, fmtS(dailyProfit), dailyProfit>=0?"g":"r"],
+                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Closed Deals`, todayTrades, ""],
+                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Closed Lots`, fmtLots(todayLots), ""],
+                  ["Open Lots", openLots.toFixed(2), ""],
+                ].map(([l,v,c]) => (
+                  <div className="eak" key={l}>
+                    <div className="eakl">{l}</div>
+                    <div className={`eakv${c?" "+c:""}`}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <AccountDrilldown account={selectedAccountData} snapshots={snapshots} />
+      <div className="sec">
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">Account Health</div>
+            <div className="sec-title">Monitored Portfolios</div>
+          </div>
+          <span className="chip ca">{accounts.length} accounts</span>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th style={{cursor:'pointer'}} onClick={()=>handleSort('name')}>Name {sortField==='name'?(sortAsc?'↑':'↓'):''}</th>
+                <th>Account</th>
+                <th>Broker</th>
+                <th style={{cursor:'pointer'}} onClick={()=>handleSort('balance')}>Balance {sortField==='balance'?(sortAsc?'↑':'↓'):''}</th>
+                <th style={{cursor:'pointer'}} onClick={()=>handleSort('equity')}>Equity {sortField==='equity'?(sortAsc?'↑':'↓'):''}</th>
+                <th style={{cursor:'pointer'}} onClick={()=>handleSort('floating')}>Floating {sortField==='floating'?(sortAsc?'↑':'↓'):''}</th>
+                <th style={{cursor:'pointer'}} onClick={()=>handleSort('dd')}>Peak DD {sortField==='dd'?(sortAsc?'↑':'↓'):''}</th>
+                <th>Closed Lots</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedAccounts.map(ea => {
+                const floating = Number(ea.equity || 0) - Number(ea.balance || 0)
+                const age = getAge(ea)
+                const maxDrawdown = accountMaxDrawdown(ea, snapshots)
+                return (
+                  <tr key={ea.account_number} className={selectedAccountData?.account_number === ea.account_number ? 'selected-row' : ''} onClick={() => selectAccount(ea.account_number)}>
+                    <td data-label="Name" className="tn">
+                      <div style={{display:'flex', alignItems:'center', gap:6}}>
+                        {accountLabel(ea)}
+                        {isAdmin && <button onClick={(event) => { event.stopPropagation(); onEditName(ea) }} style={{background:'transparent',border:'none',color:C.t3,cursor:'pointer'}}>{Ico.edit}</button>}
+                      </div>
+                    </td>
+                    <td data-label="Account" className="tm">{maskAccountNumber(ea.account_number)}</td>
+                    <td data-label="Broker" style={{color:C.t3,fontSize:11}}>{ea.broker}</td>
+                    <td data-label="Balance" className="tm">{fmtM(ea.balance)}</td>
+                    <td data-label="Equity" className="tm">{fmtM(ea.equity)}</td>
+                    <td data-label="Floating" className="tm" style={{color:pclr(floating)}}>{fmtS(floating)}</td>
+                    <td data-label="Peak DD" className="tm" style={{color:C.yel}}>{formatPercent(maxDrawdown)}</td>
+                    <td data-label="Closed Lots" className="tm">{fmtLots(accountClosedLots(ea))}</td>
+                    <td data-label="Status"><span className={`badge ${age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{age.label}</span></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function SymbolsPage({ symbols }) {
+  const [category, setCategory] = useState('all')
+  const categories = Array.from(new Set(symbols.map((symbol) => symbol.category))).sort()
+  const visibleSymbols = category === 'all' ? symbols : symbols.filter((symbol) => symbol.category === category)
+  const summary = visibleSymbols.reduce((acc, symbol) => ({
+    trades: acc.trades + symbol.trades,
+    lots: acc.lots + symbol.lots,
+    profit: acc.profit + symbol.profit,
+    accounts: acc.accounts + symbol.accounts,
+  }), { trades: 0, lots: 0, profit: 0, accounts: 0 })
+  const maxLots = Math.max(1, ...visibleSymbols.map((symbol) => Math.abs(symbol.lots)))
+  return (
+    <>
+      <div className="history-summary">
+        <div className="stat"><div className="sl">Open Symbols</div><div className="sv a">{visibleSymbols.length}</div><div className="ss">{category === 'all' ? 'all categories' : category}</div></div>
+        <div className="stat"><div className="sl">Open Trades</div><div className="sv">{summary.trades}</div><div className="ss">symbol exposure</div></div>
+        <div className="stat"><div className="sl">Total Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">combined volume</div></div>
+        <div className="stat"><div className="sl">Floating P&L</div><div className={`sv ${summary.profit >= 0 ? 'g' : 'r'}`}>{fmtS(summary.profit)}</div><div className="ss">unrealized</div></div>
+      </div>
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Symbol Performance Analysis</div><div className="sec-title">Lots, direction, and floating exposure</div></div>
+          <div className="ftabs">
+            <button className={`ftab${category === 'all' ? ' on' : ''}`} onClick={() => setCategory('all')}>All <span className="fcnt">{symbols.length}</span></button>
+            {categories.map((item) => (
+              <button key={item} className={`ftab${category === item ? ' on' : ''}`} onClick={() => setCategory(item)}>
+                {item} <span className="fcnt">{symbols.filter((symbol) => symbol.category === item).length}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="symbol-grid">
+          {visibleSymbols.length === 0 ? <div style={{color:C.t3, fontSize:13}}>No open exposure.</div> : visibleSymbols.map(sym => (
+            <div className="symcard" key={sym.symbol}>
+              <div className="symrow">
+                <span className="symname">{sym.symbol}</span>
+                <span className="mini-tag">{sym.category}</span>
+              </div>
+              <div className="symgrid">
+                {[
+                  ["Open Trades", sym.trades,  C.t1,  "across all EAs"],
+                  ["Total Lots",  sym.lots.toFixed(2), C.acc,  "combined exposure"],
+                  ["Floating P&L",fmtS(sym.profit), pclr(sym.profit), "unrealized"],
+                ].map(([l,v,clr,sub]) => (
+                  <div key={l}>
+                    <div className="sl" style={{ marginBottom:6 }}>{l}</div>
+                    <div className="symval" style={{ color:clr }}>{v}</div>
+                    <div style={{ fontSize:10, color:C.t3, marginTop:4 }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="symbol-bar">
+                <span>Lots intensity</span>
+                <div><i style={{ width: `${Math.max(3, (Math.abs(sym.lots) / maxLots) * 100).toFixed(1)}%` }} /></div>
+              </div>
+              <div className="symbol-meta-row">
+                <span>BUY {sym.buy}</span>
+                <span>SELL {sym.sell}</span>
+                <span>{sym.accounts} accounts</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Exposure Table</div><div className="sec-title">Ranked by lots</div></div>
+          <span className="chip cd">{visibleSymbols.length} rows</span>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl">
+            <thead><tr><th>Symbol</th><th>Category</th><th>Trades</th><th>Lots</th><th>Buy / Sell</th><th>Accounts</th><th>Floating</th></tr></thead>
+            <tbody>
+              {visibleSymbols.length === 0 ? <tr><td colSpan="7" style={{ textAlign:'center', color:C.t3, padding:20 }}>No symbol exposure.</td></tr> : visibleSymbols.map((symbol) => (
+                <tr key={`row-${symbol.symbol}`}>
+                  <td data-label="Symbol" className="tn">{symbol.symbol}</td>
+                  <td data-label="Category"><span className="mini-tag">{symbol.category}</span></td>
+                  <td data-label="Trades" className="tm">{symbol.trades}</td>
+                  <td data-label="Lots" className="tm">{symbol.lots.toFixed(2)}</td>
+                  <td data-label="Buy / Sell" className="tm">{symbol.buy} / {symbol.sell}</td>
+                  <td data-label="Accounts" className="tm">{symbol.accounts}</td>
+                  <td data-label="Floating" className="tm" style={{ color:pclr(symbol.profit), fontWeight:600 }}>{fmtS(symbol.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
+  const [tab, setTab] = useState("all")
+  const [direction, setDirection] = useState("all")
+  const [symbolFilter, setSymbolFilter] = useState("all")
+  
+  const tradeRows = accounts.flatMap((account) =>
+    (account.open_trades || account.trades || []).map((trade) => ({
+      ...trade,
+      account,
+    })),
+  )
+  const accountsWithTrades = accounts.filter((account) => (account.open_trades || account.trades || []).length > 0)
+  const symbols = Array.from(new Set(tradeRows.map((trade) => trade.symbol).filter(Boolean))).sort()
+  const visibleTrades = tradeRows.filter((trade) => {
+    const tabOk = tab === 'all' || trade.account.account_number === tab
+    const directionOk = direction === 'all' || String(trade.trade_type || '').toLowerCase() === direction
+    const symbolOk = symbolFilter === 'all' || trade.symbol === symbolFilter
+    return tabOk && directionOk && symbolOk
+  })
+  const tradeSummary = visibleTrades.reduce((acc, trade) => {
+    const type = String(trade.trade_type || '').toUpperCase()
+    return {
+      lots: acc.lots + Number(trade.lots || 0),
+      pnl: acc.pnl + Number(trade.profit || 0),
+      buy: acc.buy + (type === 'BUY' ? 1 : 0),
+      sell: acc.sell + (type === 'SELL' ? 1 : 0),
+      worst: Math.min(acc.worst, Number(trade.profit || 0)),
+    }
+  }, { lots: 0, pnl: 0, buy: 0, sell: 0, worst: 0 })
+  const exportTrades = () => {
+    downloadCsv('the-entity-open-trades.csv', [
+      ['ea_name', 'account', 'ticket', 'symbol', 'direction', 'lots', 'open_price', 'current_price', 'floating_pnl'],
+      ...visibleTrades.map((trade) => [
+        accountLabel(trade.account),
+        trade.account.account_number,
+        trade.ticket,
+        trade.symbol,
+        String(trade.trade_type || '').toUpperCase(),
+        Number(trade.lots || 0).toFixed(2),
+        Number(trade.open_price || 0),
+        Number(trade.current_price || 0),
+        Number(trade.profit || 0).toFixed(2),
+      ]),
+    ])
+  }
+
+  return (
+    <>
+      <div className="history-summary">
+        <div className="stat"><div className="sl">Visible Trades</div><div className="sv">{visibleTrades.length}</div><div className="ss">after filters</div></div>
+        <div className="stat"><div className="sl">Open Lots</div><div className="sv">{tradeSummary.lots.toFixed(2)}</div><div className="ss">combined exposure</div></div>
+        <div className="stat"><div className="sl">Floating P&L</div><div className={`sv ${tradeSummary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(tradeSummary.pnl)}</div><div className="ss">open positions</div></div>
+        <div className="stat"><div className="sl">Buy / Sell</div><div className="sv">{tradeSummary.buy} / {tradeSummary.sell}</div><div className="ss">direction mix</div></div>
+        <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
+      </div>
+      <div className="sec">
+        <div className="sec-h" style={{ flexDirection:"column", gap:10, alignItems:"flex-start" }}>
+          <div className="trade-head-row">
+            <div><div className="sec-lbl">Active Trades</div><div className="sec-title">Open Positions</div></div>
+            {isAdmin && <button className="btn b-acc" onClick={exportTrades}>Export CSV</button>}
+          </div>
+          <div className="ftabs">
+            <button className={`ftab${tab==="all"?" on":""}`} onClick={() => setTab("all")}>
+              All Open <span className="fcnt">{tradeRows.length}</span>
+            </button>
+            {accountsWithTrades.map((acc) => (
+              <button key={acc.account_number} className={`ftab${tab===acc.account_number?" on":""}`} onClick={() => setTab(acc.account_number)}>
+                {accountLabel(acc)} <span className="fcnt">{(acc.open_trades || acc.trades || []).length}</span>
+              </button>
+            ))}
+          </div>
+          <div className="trade-filters">
+            <select className="fctl" value={direction} onChange={(event) => setDirection(event.target.value)}>
+              <option value="all">All directions</option>
+              <option value="buy">BUY only</option>
+              <option value="sell">SELL only</option>
+            </select>
+            <select className="fctl" value={symbolFilter} onChange={(event) => setSymbolFilter(event.target.value)}>
+              <option value="all">All symbols</option>
+              {symbols.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>EA / Account</th>
+                <th>{isAdmin ? 'Ticket' : 'Trade'}</th>
+                <th>Symbol</th>
+                <th>Direction</th>
+                <th>Lots</th>
+                {isAdmin && <th>Open Price</th>}
+                <th>P&L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTrades.length === 0 ? (
+                <tr><td colSpan={isAdmin ? 7 : 6} style={{textAlign:'center', color:C.t3, padding:20}}>No open trades right now.</td></tr>
+              ) : visibleTrades.map((t, index) => (
+                <tr key={`${t.account.account_number}-${t.ticket}`}>
+                  <td data-label="EA / Account">
+                    <div style={{ fontWeight:600, color:C.t1, fontSize:12.5 }}>{accountLabel(t.account)}</div>
+                    {isAdmin && <div style={{ fontFamily:C.fn, fontSize:10, color:C.t3, marginTop:1 }}>{maskAccountNumber(t.account.account_number)}</div>}
+                  </td>
+                  <td data-label={isAdmin ? 'Ticket' : 'Trade'} className="tm" style={{ color:C.t3 }}>{isAdmin ? `#${t.ticket}` : `Trade ${index + 1}`}</td>
+                  <td data-label="Symbol" style={{ fontFamily:C.fn, fontSize:13, fontWeight:600, color:C.yel }}>{t.symbol}</td>
+                  <td data-label="Direction"><span className={`badge ${String(t.trade_type).toUpperCase()==="BUY"?"bbuy":"bsell"}`}>{String(t.trade_type).toUpperCase()}</span></td>
+                  <td data-label="Lots" className="tm">{Number(t.lots).toFixed(2)}</td>
+                  {isAdmin && <td data-label="Open Price" className="tm">${Number(t.open_price).toFixed(5)}</td>}
+                  <td data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function marginLevel(account) {
+  const margin = Number(account.margin || 0)
+  if (margin <= 0) return null
+  return (Number(account.equity || 0) / margin) * 100
+}
+
+function mt5AccountState(account, snapshots = []) {
+  const trades = account.open_trades || account.trades || []
+  const active = trades.length > 0
+  const floating = Number(account.equity || 0) - Number(account.balance || 0)
+  const floatingPct = pctOfBalance(floating, account.balance)
+  const currentDd = Number(account.drawdown_percent || 0)
+  const peakDd = accountMaxDrawdown(account, snapshots)
+  const openLots = accountOpenLots(account)
+  const profile = inferEaProfile(account, snapshots)
+  const ml = marginLevel(account)
+
+  if (currentDd >= 10 || floatingPct <= -8 || openLots >= 20) {
+    return { key: 'danger', label: 'Critical Exposure', tone: 'danger', active, floating, floatingPct, currentDd, peakDd, openLots, profile, ml, trades }
+  }
+  if (active) {
+    return { key: 'active', label: 'Active Exposure', tone: 'active', active, floating, floatingPct, currentDd, peakDd, openLots, profile, ml, trades }
+  }
+  if (currentDd >= 3 || floatingPct <= -3) {
+    return { key: 'watch', label: 'Idle Watch', tone: 'watch', active, floating, floatingPct, currentDd, peakDd, openLots, profile, ml, trades }
+  }
+  return { key: 'healthy', label: 'Healthy Idle', tone: 'healthy', active, floating, floatingPct, currentDd, peakDd, openLots, profile, ml, trades }
+}
+
+function MT5TerminalCard({ account, state, expanded, onToggle }) {
+  const meta = brokerMeta(account.broker)
+  const age = getAge(account)
+  const todayPnl = accountTodayProfit(account)
+  const todayTrades = accountTodayTrades(account)
+  const closedLots = accountClosedLots(account)
+  const marginColor = state.ml !== null && state.ml < 500 ? C.yel : C.t1
+  return (
+    <div className={`terminal-card ${state.tone}${expanded ? ' open' : ''}`}>
+      <button className="terminal-shell" type="button" onClick={onToggle}>
+        <div className="terminal-top">
+          <div className={`broker-logo mini ${meta.tone}`}>{meta.asset ? <img src={meta.asset} alt={`${meta.label} logo`} /> : meta.logo}</div>
+          <div className="terminal-title">
+            <strong>{accountLabel(account)}</strong>
+            <span>{maskAccountNumber(account.account_number)}</span>
+          </div>
+          <span className={`terminal-live ${state.active ? 'on' : 'off'}`}>{state.active ? 'Live' : 'Idle'}</span>
+        </div>
+        <div className="terminal-meta">{meta.label}</div>
+        <div className="terminal-tags">
+          <span>{state.profile.strategy}</span>
+          <span className={state.profile.level}>{state.profile.risk}</span>
+        </div>
+        <div className="terminal-balance">
+          <span>Equity</span>
+          <b>{fmtM(account.equity)}</b>
+          <em style={{ color:pclr(state.floating) }}>{fmtS(state.floating)}</em>
+        </div>
+        <div className="terminal-grid">
+          <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
+          <div><span>Current DD</span><b style={{ color: state.currentDd >= 10 ? C.red : state.currentDd >= 3 ? C.yel : C.t1 }}>{formatPercent(state.currentDd)}</b></div>
+          <div><span>Open Lots</span><b>{state.openLots.toFixed(2)}</b></div>
+          <div><span>Open Trades</span><b>{state.trades.length}</b></div>
+          <div><span>{reportingDayLabel(latestHistoryRow(account)?.date)} P&L</span><b style={{ color:pclr(todayPnl) }}>{fmtS(todayPnl)}</b></div>
+          <div><span>{reportingDayLabel(latestHistoryRow(account)?.date)} Closed Deals</span><b>{todayTrades}</b></div>
+          <div><span>Closed Lots</span><b>{closedLots === null ? '-' : fmtLots(closedLots)}</b></div>
+          <div><span>Margin Lv</span><b style={{ color:marginColor }}>{state.ml === null ? '-' : `${state.ml.toFixed(0)}%`}</b></div>
+        </div>
+        <div className="terminal-foot">
+          <span>{age.detail}</span>
+          <b>{expanded ? 'Hide positions' : 'View terminal'}</b>
+        </div>
+      </button>
+      {expanded ? (
+        <div className="terminal-positions">
+          {state.trades.length === 0 ? (
+            <div className="empty-note">No open positions on this account.</div>
+          ) : state.trades.slice(0, 14).map((trade) => (
+            <div className="terminal-position" key={`${account.account_number}-${trade.ticket}`}>
+              <span>{trade.symbol}</span>
+              <b className={String(trade.trade_type || '').toUpperCase() === 'BUY' ? 'buy' : 'sell'}>{String(trade.trade_type || '').toUpperCase()}</b>
+              <em>{Number(trade.lots || 0).toFixed(2)} lots</em>
+              <strong style={{ color:pclr(trade.profit) }}>{fmtS(trade.profit)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MT5PreviewPage({ accounts, snapshots = [], lastUpdate = null }) {
+  const [filter, setFilter] = useState('all')
+  const [sort, setSort] = useState('floating-desc')
+  const [expanded, setExpanded] = useState(null)
+  const rows = accounts.map((account) => ({ account, state: mt5AccountState(account, snapshots) }))
+  const filtered = rows.filter(({ account, state }) => {
+    const active = state.active
+    if (filter === 'active') return active
+    if (filter === 'idle') return !active
+    if (filter === 'usd') return accountCurrency(account) === 'USD'
+    if (filter === 'usc') return accountCurrency(account) === 'USC'
+    if (filter === 'danger') return state.key === 'danger'
+    return true
+  })
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === 'name') return accountLabel(a.account).localeCompare(accountLabel(b.account))
+    if (sort === 'positions-desc') return b.state.trades.length - a.state.trades.length
+    if (sort === 'margin-asc') return Number(a.state.ml ?? Infinity) - Number(b.state.ml ?? Infinity)
+    if (sort === 'dd-desc') return b.state.currentDd - a.state.currentDd
+    if (sort === 'pnl-asc') return a.state.floating - b.state.floating
+    return b.state.floating - a.state.floating
+  })
+  const groupOrder = [
+    { key: 'danger', label: 'Danger Drawdown', tone: 'danger', note: 'DD, floating, or lots need attention' },
+    { key: 'active', label: 'Active Exposure', tone: 'active', note: 'Accounts currently holding orders' },
+    { key: 'watch', label: 'Idle Watch', tone: 'watch', note: 'No open orders but risk history is elevated' },
+    { key: 'healthy', label: 'Healthy Idle', tone: 'healthy', note: 'No open positions and normal risk' },
+  ]
+  const grouped = groupOrder
+    .map((group) => {
+      const items = sorted.filter((row) => row.state.key === group.key)
+      const floating = items.reduce((sum, row) => sum + row.state.floating, 0)
+      const lots = items.reduce((sum, row) => sum + row.state.openLots, 0)
+      const positions = items.reduce((sum, row) => sum + row.state.trades.length, 0)
+      const currentDd = items.reduce((max, row) => Math.max(max, row.state.currentDd), 0)
+      return { ...group, items, floating, lots, positions, currentDd }
+    })
+    .filter((group) => group.items.length > 0)
+  const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0)
+  const totalEquity = accounts.reduce((sum, account) => sum + Number(account.equity || 0), 0)
+  const totalPositions = accounts.reduce((sum, account) => sum + Number(account.open_positions || (account.open_trades || []).length || 0), 0)
+  const totalLots = accounts.reduce((sum, account) => sum + accountOpenLots(account), 0)
+  const dangerCount = rows.filter((row) => row.state.key === 'danger').length
+  return (
+    <>
+      <div className="history-summary">
+        <div className="stat"><div className="sl">Balance</div><div className="sv">{fmtM(totalBalance)}</div><div className="ss">all previewed ports</div></div>
+        <div className="stat"><div className="sl">Equity</div><div className="sv">{fmtM(totalEquity)}</div><div className="ss">live equity</div></div>
+        <div className="stat"><div className="sl">Floating</div><div className={`sv ${totalEquity - totalBalance >= 0 ? 'g' : 'r'}`}>{fmtS(totalEquity - totalBalance)}</div><div className="ss">open P&L</div></div>
+        <div className="stat"><div className="sl">Positions / Lots</div><div className="sv a">{totalPositions} / {totalLots.toFixed(2)}</div><div className="ss">MT5 exposure</div></div>
+        <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
+      </div>
+      <div className="sec">
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">MT5 Preview</div>
+            <div className="sec-title">Grouped terminal board</div>
+            <div className="sec-sub">Compact MT5-style snapshots grouped by risk and live exposure.</div>
+          </div>
+          <div className="trade-filters">
+            <select className="fctl" value={filter} onChange={(event) => setFilter(event.target.value)}>
+              <option value="all">All ({accounts.length})</option>
+              <option value="danger">Danger ({dangerCount})</option>
+              <option value="active">Active</option>
+              <option value="idle">Idle</option>
+              <option value="usd">USD</option>
+              <option value="usc">USC</option>
+            </select>
+            <select className="fctl wide" value={sort} onChange={(event) => setSort(event.target.value)}>
+              <option value="floating-desc">P&L high to low</option>
+              <option value="pnl-asc">P&L low to high</option>
+              <option value="dd-desc">Current DD high to low</option>
+              <option value="margin-asc">Margin level watch</option>
+              <option value="positions-desc">Positions high to low</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt5-board">
+          {grouped.length === 0 ? <div className="empty-note">No account matches this preview filter.</div> : grouped.map((group) => (
+            <section className={`mt5-group ${group.tone}`} key={group.key}>
+              <div className="mt5-group-head">
+                <div>
+                  <div className="mt5-group-kicker">{group.note}</div>
+                  <h3>{group.label}</h3>
+                </div>
+                <div className="mt5-group-stats">
+                  <span>{group.items.length} accounts</span>
+                  <b style={{ color:pclr(group.floating) }}>{fmtS(group.floating)}</b>
+                  <em>{group.positions} positions / {group.lots.toFixed(2)} lots / current DD {formatPercent(group.currentDd)}</em>
+                </div>
+              </div>
+              <div className="terminal-grid-board">
+                {group.items.map(({ account, state }) => {
+                  const isOpen = expanded === account.account_number
+                  return (
+                    <MT5TerminalCard
+                      key={account.account_number}
+                      account={account}
+                      state={state}
+                      expanded={isOpen}
+                      onToggle={() => setExpanded(isOpen ? null : account.account_number)}
+                    />
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function AlertsPage({ accounts, snapshots, sysData }) {
+  const alerts = buildAlerts(accounts, snapshots, sysData)
+  const critical = alerts.filter((alert) => alert.level === 'critical').length
+  const warning = alerts.filter((alert) => alert.level === 'warning').length
+  const info = alerts.filter((alert) => alert.level === 'info').length
+  return (
+    <>
+      <div className="alert-summary">
+        <div className="alert-kpi critical"><span>Critical</span><b>{critical}</b></div>
+        <div className="alert-kpi warning"><span>Warning</span><b>{warning}</b></div>
+        <div className="alert-kpi info"><span>Info</span><b>{info}</b></div>
+      </div>
+      <WeekendExposureCard accounts={accounts} />
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Notification Center</div><div className="sec-title">Portfolio Alerts</div></div>
+          <span className="chip ca">{alerts.length} alerts</span>
+        </div>
+        <div className="alert-list">
+          {alerts.length === 0 ? <div className="empty-note">No alerts. Portfolio is within current monitoring thresholds.</div> : alerts.map((alert, index) => (
+            <div className={`alert-row ${alert.level}`} key={`${alert.title}-${index}`}>
+              <div className="alert-dot" />
+              <div>
+                <div className="alert-title">{alert.title}</div>
+                <div className="alert-detail">{alert.detail}</div>
+              </div>
+              <span className="chip cd">{alert.scope}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function HistoryPage({ accounts, isAdmin = false }) {
+  const [range, setRange] = useState('30')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [accountFilter, setAccountFilter] = useState('all')
+  const [brokerFilter, setBrokerFilter] = useState('all')
+  const [pnlFilter, setPnlFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const rows = useMemo(() => buildClosedHistoryRows(accounts), [accounts])
+  const brokers = useMemo(() => Array.from(new Set(accounts.map((account) => account.broker).filter(Boolean))).sort(), [accounts])
+  const customState = useMemo(() => {
+    if (range !== 'custom') return null
+    if (customStart && customEnd && customStart <= customEnd) return { label: `${customStart} to ${customEnd}`, complete: true, invalid: false }
+    if (customStart && customEnd && customStart > customEnd) return { label: 'Custom: invalid range', complete: false, invalid: true }
+    return { label: customStart || customEnd ? 'Custom: complete dates' : 'Custom: select dates', complete: false, invalid: false }
+  }, [range, customStart, customEnd])
+  const filteredRows = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    const cutoff = new Date()
+    cutoff.setHours(0, 0, 0, 0)
+    if (range !== 'all' && range !== 'custom') cutoff.setDate(cutoff.getDate() - Number(range || 0))
+    return rows.filter((row) => {
+      let dateOk = true
+      if (range === 'custom') {
+        dateOk = Boolean(customStart && customEnd && customStart <= customEnd && row.date >= customStart && row.date <= customEnd)
+      } else if (range !== 'all') {
+        dateOk = new Date(`${row.date}T00:00:00`) >= cutoff
+      }
+      const accountOk = accountFilter === 'all' || String(row.account_number) === accountFilter
+      const brokerOk = brokerFilter === 'all' || row.broker === brokerFilter
+      const pnlOk =
+        pnlFilter === 'all' ||
+        (pnlFilter === 'profit' && row.pnl > 0) ||
+        (pnlFilter === 'loss' && row.pnl < 0) ||
+        (pnlFilter === 'traded' && row.trades > 0)
+      const queryOk = !term || [row.name, row.broker, row.account_number].some((value) => String(value || '').toLowerCase().includes(term))
+      return dateOk && accountOk && brokerOk && pnlOk && queryOk
+    })
+  }, [rows, range, customStart, customEnd, accountFilter, brokerFilter, pnlFilter, query])
+  const summary = filteredRows.reduce((acc, row) => ({
+    pnl: acc.pnl + row.pnl,
+    trades: acc.trades + row.trades,
+    lots: acc.lots + row.lots,
+    winDays: acc.winDays + (row.trades > 0 && row.pnl > 0 ? 1 : 0),
+    lossDays: acc.lossDays + (row.trades > 0 && row.pnl < 0 ? 1 : 0),
+  }), { pnl: 0, trades: 0, lots: 0, winDays: 0, lossDays: 0 })
+  const exportHistory = () => {
+    downloadCsv('the-entity-closed-history.csv', [
+      ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots'],
+      ...filteredRows.map((row) => [row.date, row.name, row.account_number, row.broker, row.pnl > 0 ? 'profit' : row.pnl < 0 ? 'loss' : 'flat', row.pnl.toFixed(2), row.trades, row.lots.toFixed(2)]),
+    ])
+  }
+  return (
+    <>
+      <div className="history-summary">
+        <div className="stat"><div className="sl">Closed P&L</div><div className={`sv ${summary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(summary.pnl)}</div><div className="ss">selected period</div></div>
+        <div className="stat"><div className="sl">Closed Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">reported volume</div></div>
+        <div className="stat"><div className="sl">Closed Deals</div><div className="sv">{summary.trades}</div><div className="ss">daily history total</div></div>
+        <div className="stat"><div className="sl">Profitable / Loss Account-Days</div><div className="sv">{summary.winDays} / {summary.lossDays}</div><div className="ss">account-days with deals</div></div>
+      </div>
+      <div className="sec">
+        <div className="sec-h history-head">
+          <div><div className="sec-lbl">Closed Performance</div><div className="sec-title">Trade History Summary</div></div>
+          {isAdmin && <button className="btn b-acc" onClick={exportHistory}>Export CSV</button>}
+        </div>
+        <div className="history-controls">
+          <select className="fctl" value={range} onChange={(event) => setRange(event.target.value)}>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="custom">Custom</option>
+            <option value="all">All history</option>
+          </select>
+          {range === 'custom' ? (
+            <div className="history-custom-range" aria-label="Custom history date range">
+              <input className="fctl" type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} aria-label="History custom start date" />
+              <input className="fctl" type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} aria-label="History custom end date" />
+              <span className={`history-custom-state${customState?.invalid ? ' invalid' : ''}`}>{customState?.label}</span>
+            </div>
+          ) : null}
+          <select className="fctl wide" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+            <option value="all">All accounts</option>
+            {accounts.map((account) => <option key={account.account_number} value={account.account_number}>{accountLabel(account)}</option>)}
+          </select>
+          <select className="fctl wide" value={brokerFilter} onChange={(event) => setBrokerFilter(event.target.value)}>
+            <option value="all">All brokers</option>
+            {brokers.map((broker) => <option key={broker} value={broker}>{brokerMeta(broker).label}</option>)}
+          </select>
+          <select className="fctl" value={pnlFilter} onChange={(event) => setPnlFilter(event.target.value)}>
+            <option value="all">All results</option>
+            <option value="profit">Profit days</option>
+            <option value="loss">Loss days</option>
+            <option value="traded">Trade days only</option>
+          </select>
+          <input className="fctl search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search history" />
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl">
+            <thead><tr><th>Date</th><th>EA</th><th>Account</th><th>Broker</th><th>P&L</th><th>Closed Deals</th><th>Closed Lots</th></tr></thead>
+            <tbody>
+              {filteredRows.length === 0 ? (
+                <tr><td colSpan="7" style={{ textAlign:'center', color:C.t3, padding:20 }}>No closed history for the selected filters.</td></tr>
+              ) : filteredRows.slice(0, 250).map((row) => (
+                <tr key={`${row.account_number}-${row.date}`}>
+                  <td data-label="Date" className="tm">{row.date}</td>
+                  <td data-label="EA" className="tn">{row.name}</td>
+                  <td data-label="Account" className="tm">{maskAccountNumber(row.account_number)}</td>
+                  <td data-label="Broker" style={{ color:C.t3, fontSize:11 }}>{row.broker}</td>
+                  <td data-label="P&L" className="tm" style={{ color:pclr(row.pnl), fontWeight:600 }}>{fmtS(row.pnl)}</td>
+                  <td data-label="Closed Deals" className="tm">{row.trades}</td>
+                  <td data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function ConfigField({ label, value, helper, masked = false, disabled = false }) {
+  const [revealed, setRevealed] = useState(false)
+  const displayValue = masked && !revealed
+    ? value ? '*'.repeat(Math.min(36, String(value).length)) : 'Admin only'
+    : value || 'Not configured'
+  const copyValue = async () => {
+    if (!value || disabled) return
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {}
+  }
+  return (
+    <div className="config-field">
+      <div className="config-label">{label}</div>
+      <div className="config-box">
+        <code>{displayValue}</code>
+        {masked && value ? <button type="button" onClick={() => setRevealed((next) => !next)}>{revealed ? 'Hide' : 'Show'}</button> : null}
+        <button type="button" onClick={copyValue} disabled={!value || disabled} aria-label={`Copy ${label}`}>{Ico.copy}</button>
+      </div>
+      {helper ? <div className="config-help">{helper}</div> : null}
+    </div>
+  )
+}
+
+function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
+  const [mt5Config, setMt5Config] = useState({ api_key: '', configured: false })
+  const [configError, setConfigError] = useState('')
+  useEffect(() => {
+    if (!isAdmin) return undefined
+    let alive = true
+    fetch(`${API_URL}/api/mt5/config`, { credentials: 'include' })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(`MT5 config ${response.status}`)))
+      .then((config) => { if (alive) setMt5Config(config) })
+      .catch((err) => { if (alive) setConfigError(err.message) })
+    return () => { alive = false }
+  }, [isAdmin])
+
+  const activeAccounts = accounts.filter((account) => getAge(account).seconds <= 60).length
+  const latestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
+  const syncLabel = latestAge === Infinity ? 'Waiting' : latestAge <= 60 ? 'Healthy' : 'Stale'
+  const syncTone = latestAge === Infinity ? C.yel : latestAge <= 60 ? C.grn : C.red
+  const syncAgeText = latestAge === Infinity ? 'No reporter sync yet' : `${latestAge.toFixed(0)}s ago`
+  const allowListUrl = window.location.origin
+  return (
+    <>
+      <div className="reporter-hero sec">
+        <div className="sec-h reporter-head">
+          <div>
+            <div className="sec-lbl">MT5 Reporter</div>
+            <div className="sec-title">Connect terminals without Python</div>
+            <div className="sec-sub">Reporter v1.04 backfills up to 365 days of MT5 closed-deal history. No Python collector needed on the VPS.</div>
+          </div>
+          <span className="chip cb">MQL5 WebRequest</span>
+        </div>
+        <div className="reporter-grid">
+          <ConfigField
+            label="Endpoint URL"
+            value={INGEST_ENDPOINT}
+            helper="Use this URL in DashboardEndpoint."
+          />
+          <ConfigField
+            label="WebRequest allow-list"
+            value={allowListUrl}
+            helper="MT5: Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL."
+          />
+          <ConfigField
+            label="API key (DashboardApiKey)"
+            value={isAdmin ? mt5Config.api_key : ''}
+            masked
+            disabled={!isAdmin}
+            helper={isAdmin ? (configError || 'Keep this private. Rotate from server .env if leaked.') : 'Admin only. Demo users cannot view or copy the ingest key.'}
+          />
+          <div className="reporter-status-card">
+            <div className="config-label">Last reporter sync</div>
+            <div className="reporter-status-line">
+              <span className="status-dot" style={{ background: syncTone }} />
+              <strong style={{ color: syncTone }}>{syncLabel}</strong>
+              <b>200 OK</b>
+            </div>
+            <p>{syncAgeText} · {activeAccounts}/{accounts.length} accounts live</p>
+            {lastUpdate ? <em>Dashboard refresh {lastUpdate.toLocaleTimeString('en-US')}</em> : null}
+          </div>
+        </div>
+        <div className="reporter-downloads">
+          <a className="dlbtn primary" href={REPORTER_PATH} download>{Ico.sync} Download MQ5 Source</a>
+          <a className="dlbtn" href={REPORTER_EX5_PATH} download>{Ico.lock} Download Compiled EX5</a>
+        </div>
+      </div>
+
+      <div className="sec setup-sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Setup checklist</div><div className="sec-title">Install one reporter per terminal</div></div>
+          <span className="chip ca">{accounts.length} accounts detected</span>
+        </div>
+        <div className="setup-list">
+          {[
+            ['Place the EX5 file', 'Drop it into MT5 -> MQL5 -> Experts folder, then restart MT5.'],
+            ['Enable WebRequest', "Tools -> Options -> Expert Advisors -> tick 'Allow WebRequest for listed URL' and add the allow-list URL above."],
+            ['Attach to a chart', "Drag 'MT5DashboardReporter' EA onto any chart. Symbol does not matter."],
+            ['Set inputs', 'DashboardEndpoint = endpoint URL / DashboardApiKey = API key shown above / IncludeDailyHistory = true.'],
+            ['Verify telemetry', 'Open Mission / Logs or MT5 Preview. You should see a fresh heartbeat within one sync cycle.'],
+          ].map(([title, detail], index) => (
+            <div className="setup-step" key={title}>
+              <span>{index + 1}</span>
+              <div><strong>{title}</strong><p>{detail}</p></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sec troubleshoot-sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Troubleshooting</div><div className="sec-title">Common reporter issues</div></div>
+          <span className="chip cd">Fast checks</span>
+        </div>
+        <div className="trouble-list">
+          {[
+            ['WebRequest blocked', 'Re-check the allow-list URL exactly matches the endpoint host, scheme, and port. MT5 is strict.'],
+            ['No data after install', 'Confirm Algo Trading is ON and the EA enabled icon appears on the chart.'],
+            ['401 Unauthorized', 'API key mismatch. Copy DashboardApiKey again and restart the EA.'],
+            ['Connection timeout', 'Firewall or VPS security list is blocking outbound HTTP from the MT5 terminal.'],
+          ].map(([title, detail]) => (
+            <div className="trouble-row" key={title}>
+              <span>OK</span>
+              <div><strong>{title}</strong><p>{detail}</p></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function LogsPage({ sysData, accounts = [], lastUpdate = null }) {
+  const liveAccounts = accounts.filter((account) => getAge(account).seconds < 330)
+  const staleAccounts = accounts.filter((account) => getAge(account).seconds >= 330)
+  const newestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
+  const syncState = newestAge === Infinity ? 'Waiting' : newestAge < 330 ? 'Healthy' : 'Stale'
+  const syncColor = syncState === 'Healthy' ? C.grn : syncState === 'Stale' ? C.red : C.yel
+  return (
+    <>
+      <div className="loggrid">
+        {[["CPU",sysData?.cpu_percent||0],["RAM",sysData?.ram_percent||0],["Disk",sysData?.disk_percent||0]].map(([l,v]) => (
+          <div className="logsc" key={l}>
+            <div className="logsl">{l}</div>
+            <div className="logsv" style={{ color:resourceTone(v) }}>{v.toFixed(2)}%</div>
+            <div className="logbar"><div className="logfill" style={{ width:`${Math.max(v,.3)}%`, background:resourceTone(v) }} /></div>
+          </div>
+        ))}
+      </div>
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Forex System Health</div><div className="sec-title">Reporter heartbeat</div></div>
+          <span className="chip ca">{liveAccounts.length}/{accounts.length} live</span>
+        </div>
+        <div className="system-health-grid">
+          <div className="system-health-card">
+            <div className="config-label">Sync status</div>
+            <strong style={{ color: syncColor }}>{syncState}</strong>
+            <p>{newestAge === Infinity ? 'No MT5 reporter heartbeat detected yet.' : `Newest reporter update ${newestAge.toFixed(0)}s ago.`}</p>
+            {lastUpdate ? <em>Dashboard refreshed {lastUpdate.toLocaleTimeString('en-US')}</em> : null}
+          </div>
+          <div className="system-health-card">
+            <div className="config-label">Account coverage</div>
+            <strong>{liveAccounts.length}/{accounts.length}</strong>
+            <p>{staleAccounts.length ? `${staleAccounts.length} accounts need reporter attention.` : 'All monitored accounts are updating inside the live threshold.'}</p>
+          </div>
+          <div className="system-health-card">
+            <div className="config-label">Admin note</div>
+            <strong>Internal logs hidden</strong>
+            <p>Raw server and TFM job logs are no longer shown in the product UI. Use VPS access for deep diagnostics.</p>
+          </div>
+        </div>
+      </div>
+      <div className="sec">
+        <div className="sec-h">
+          <div><div className="sec-lbl">Reporter Status</div><div className="sec-title">Per-account freshness</div></div>
+          <span className="chip cd">{accounts.length} accounts</span>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>EA</th>
+                <th>Account</th>
+                <th>Broker</th>
+                <th>Last update</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((account) => {
+                const age = getAge(account)
+                const statusClass = age.seconds < 330 ? 'blive' : age.seconds < 1800 ? 'bbuy' : 'bsell'
+                return (
+                  <tr key={account.account_number}>
+                    <td className="tn">{accountLabel(account)}</td>
+                    <td className="tm">{maskAccountNumber(account.account_number)}</td>
+                    <td>{brokerMeta(account.broker).label}</td>
+                    <td className="tm">{age.detail}</td>
+                    <td><span className={`badge ${statusClass}`}>{age.label}</span></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// โ”€โ”€ ROOT โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+export default function App() {
+  const [page, setPage] = useState("overview")
+  const [time, setTime] = useState(new Date())
+  const [user, setUser] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [data, setData] = useState(null)
+  const [sysData, setSysData] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [lastUpdate, setLastUpdate] = useState(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  
+  const [brokerFilter, setBrokerFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sortMode, setSortMode] = useState('equity-desc')
+  const [strategyFilter, setStrategyFilter] = useState('all')
+  const [periodKey, setPeriodKey] = useState('all')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [editingAccount, setEditingAccount] = useState(null)
+  const [editingName, setEditingName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deletingPortfolio, setDeletingPortfolio] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
+  
+  const isAdmin = user?.role === 'admin'
+
+  // Clock
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        if (user) setCommandOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [user])
+
+  // Auth & Fetch
+  const checkSession = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, { credentials: 'include' })
+      if (!response.ok) throw new Error('No session')
+      const currentUser = await response.json()
+      if (!currentUser.authenticated) throw new Error('No session')
+      setUser(currentUser)
+    } catch {
+      setUser(null)
+      setData(null)
+    } finally {
+      setAuthChecked(true)
+    }
+  }, [])
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/dashboard`, { headers: { 'Content-Type': 'application/json' }, credentials: 'include' })
+      if (response.status === 401) { setUser(null); setData(null); return }
+      if (!response.ok) throw new Error(`Dashboard API ${response.status}`)
+      const result = await response.json()
+      setData(result)
+      setLastUpdate(new Date())
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const fetchSystem = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/system`, { credentials: 'include' })
+      if (response.ok) setSysData(await response.json())
+    } catch {}
+  }, [])
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/logs`, { credentials: 'include' })
+      if (response.ok) setLogs((await response.json()).logs || [])
+    } catch {}
+  }, [])
+
+  const logout = useCallback(async () => {
+    try { await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' }) } catch {}
+    setUser(null)
+    setData(null)
+    setPage('overview')
+  }, [])
+
+  const syncNow = useCallback(() => {
+    fetchDashboard()
+    if (isAdmin) {
+      fetchSystem()
+      fetchLogs()
+    }
+  }, [fetchDashboard, fetchLogs, fetchSystem, isAdmin])
+
+  useEffect(() => { checkSession() }, [checkSession])
+  
+  useEffect(() => {
+    if (!user) return
+    fetchDashboard()
+    if (isAdmin) {
+      fetchSystem()
+      fetchLogs()
+    }
+  }, [fetchDashboard, fetchSystem, fetchLogs, user, isAdmin])
+  
+  useEffect(() => {
+    if (!autoRefresh || !user) return undefined
+    const timer = window.setInterval(() => {
+      fetchDashboard()
+      if (isAdmin) {
+        fetchSystem()
+        if (page === 'logs') fetchLogs()
+      }
+    }, 10000)
+    return () => window.clearInterval(timer)
+  }, [autoRefresh, fetchDashboard, fetchSystem, fetchLogs, page, user, isAdmin])
+
+  const openNameEditor = useCallback((account) => {
+    setEditingAccount(account)
+    setEditingName(account?.display_name || '')
+  }, [])
+
+  const closeNameEditor = useCallback(() => {
+    if (savingName) return
+    setEditingAccount(null)
+    setEditingName('')
+  }, [savingName])
+
+  const saveAccountName = useCallback(async (event) => {
+    event.preventDefault()
+    if (!editingAccount || !isAdmin) return
+    setSavingName(true)
+    try {
+      const response = await fetch(`${API_URL}/api/accounts/${encodeURIComponent(editingAccount.account_number)}/name`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ display_name: editingName }),
+      })
+      if (!response.ok) throw new Error(`Save name API ${response.status}`)
+      const updated = await response.json()
+      setData((current) => {
+        if (!current?.accounts) return current
+        return {
+          ...current,
+          accounts: current.accounts.map((account) =>
+            account.account_number === updated.account_number ? { ...account, display_name: updated.display_name } : account,
+          ),
+        }
+      })
+      setEditingAccount(null)
+      setEditingName('')
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingName(false)
+    }
+  }, [editingAccount, editingName, isAdmin])
+
+  const openDeleteDialog = useCallback((account) => {
+    setDeletingAccount(account)
+    setDeleteConfirmation('')
+  }, [])
+
+  const closeDeleteDialog = useCallback(() => {
+    if (deletingPortfolio) return
+    setDeletingAccount(null)
+    setDeleteConfirmation('')
+  }, [deletingPortfolio])
+
+  const deletePortfolio = useCallback(async (event) => {
+    event.preventDefault()
+    if (!deletingAccount || !isAdmin || deleteConfirmation !== 'DELETE') return
+    setDeletingPortfolio(true)
+    try {
+      const response = await fetch(`${API_URL}/api/accounts/${encodeURIComponent(deletingAccount.account_number)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Delete portfolio API ${response.status}`)
+      setData((current) => current ? {
+        ...current,
+        accounts: (current.accounts || []).filter((account) => account.account_number !== deletingAccount.account_number),
+        equity_snapshots: (current.equity_snapshots || []).filter((snapshot) => snapshot.account_number !== deletingAccount.account_number),
+      } : current)
+      setDeletingAccount(null)
+      setDeleteConfirmation('')
+      setError(null)
+      setNotice(`${accountLabel(deletingAccount)} deleted. Disable its MT5 Reporter to keep it removed.`)
+      window.setTimeout(() => setNotice(''), 7000)
+      await fetchDashboard()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingPortfolio(false)
+    }
+  }, [deletingAccount, deleteConfirmation, fetchDashboard, isAdmin])
+
+  const accounts = data?.accounts || []
+  const brokers = useMemo(() => Array.from(new Set(accounts.map((a) => a.broker).filter(Boolean))).sort(), [accounts])
+  const periodRange = useMemo(() => getPeriodRange(periodKey, customStart, customEnd), [periodKey, customStart, customEnd])
+  const strategyOptions = useMemo(() => {
+    const values = new Set(accounts.map((account) => inferEaProfile(account, data?.equity_snapshots || []).strategy))
+    return Array.from(values).sort()
+  }, [accounts, data?.equity_snapshots])
+  
+  const filteredAccounts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    const getStatus = (account) => {
+      const age = getAge(account).seconds
+      if (age < 330) return 'live'
+      if (age < 1800) return 'stale'
+      return 'offline'
+    }
+
+    const next = accounts.filter((account) => {
+      const brokerMatch = brokerFilter === 'all' || account.broker === brokerFilter
+      const statusMatch = statusFilter === 'all' || getStatus(account) === statusFilter
+      const strategyMatch = strategyFilter === 'all' || inferEaProfile(account, data?.equity_snapshots || []).strategy === strategyFilter
+      const searchMatch = !term || [
+        accountLabel(account),
+        account.account_number,
+        account.broker,
+      ].some((value) => String(value || '').toLowerCase().includes(term))
+      return brokerMatch && statusMatch && strategyMatch && searchMatch
+    })
+
+    const numeric = (account, key) => Number(account[key] || 0)
+    return [...next].sort((a, b) => {
+      if (sortMode === 'equity-asc') return numeric(a, 'equity') - numeric(b, 'equity')
+      if (sortMode === 'floating-desc') return (Number(b.equity || 0) - Number(b.balance || 0)) - (Number(a.equity || 0) - Number(a.balance || 0))
+      if (sortMode === 'floating-asc') return (Number(a.equity || 0) - Number(a.balance || 0)) - (Number(b.equity || 0) - Number(b.balance || 0))
+      if (sortMode === 'dd-desc') return accountMaxDrawdown(b, data?.equity_snapshots || []) - accountMaxDrawdown(a, data?.equity_snapshots || [])
+      if (sortMode === 'name-asc') return accountLabel(a).localeCompare(accountLabel(b))
+      return numeric(b, 'equity') - numeric(a, 'equity')
+    })
+  }, [accounts, brokerFilter, statusFilter, strategyFilter, sortMode, searchTerm, data?.equity_snapshots])
+
+  const brokerScopedAccounts = useMemo(() => {
+    if (brokerFilter === 'all') return accounts
+    return accounts.filter((account) => account.broker === brokerFilter)
+  }, [accounts, brokerFilter])
+
+  const summary = useMemo(() => summarize(filteredAccounts, data?.equity_snapshots || []), [filteredAccounts, data?.equity_snapshots])
+  const periodStats = useMemo(() => buildPeriodStats(filteredAccounts, periodRange), [filteredAccounts, periodRange])
+  const equitySeries = useMemo(() => buildEquitySeries(filteredAccounts, data?.equity_snapshots || []), [filteredAccounts, data?.equity_snapshots])
+  const rankings = useMemo(() => buildRankings(filteredAccounts, periodRange), [filteredAccounts, periodRange])
+  const monthlyRows = useMemo(() => buildMonthlyRows(filteredAccounts, periodRange), [filteredAccounts, periodRange])
+  const symbols = useMemo(() => buildSymbolExposure(accounts), [accounts])
+
+  if (!authChecked || (user && loading)) {
+    return <LoadingSkeleton />
+  }
+
+  if (!user) {
+    return <LoginScreen onLogin={(nextUser) => { setUser(nextUser); setLoading(true) }} />
+  }
+
+  const NAV = [
+    { id:"overview", label:"Overview",       icon:Ico.overview  },
+    { id:"advisors", label:"Expert Advisors", icon:Ico.advisors  },
+    { id:"symbols",  label:"Symbols",         icon:Ico.symbols   },
+    { id:"trades",   label:"Active Trades",   icon:Ico.trades    },
+    { id:"mt5preview", label:"MT5 Preview",    icon:Ico.reporter  },
+    { id:"history",  label:"History",         icon:Ico.trades    },
+    ...(isAdmin ? [
+      { id:"reporter", label:"MT5 Reporter",    icon:Ico.reporter  },
+      { id:"logs",     label:"System Health",   icon:Ico.logs      },
+    ] : [])
+  ]
+
+  const PAGE_TITLES = {
+    overview:"Overview", advisors:"Expert Advisors", symbols:"Symbols",
+    trades:"Active Trades", mt5preview:"MT5 Preview", history:"History",
+    reporter:"MT5 Reporter", logs:"System Health",
+  }
+
+  const showFilterBar = ['overview', 'advisors', 'trades', 'mt5preview'].includes(page)
+  const showPeriodFilter = page === 'overview'
+  const showAccountTools = ['overview', 'advisors'].includes(page)
+  const MOBILE_PRIMARY_IDS = ['overview', 'advisors', 'trades', 'mt5preview', 'history']
+  const MOBILE_NAV = NAV.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id))
+  const MOBILE_MORE_NAV = NAV.filter((item) => !MOBILE_PRIMARY_IDS.includes(item.id))
+  const mobileLabel = (item) => item.id === 'advisors' ? 'EAs'
+    : item.id === 'trades' ? 'Trades'
+    : item.id === 'mt5preview' ? 'Preview'
+    : item.id === 'history' ? 'Reports'
+    : item.id === 'reporter' ? 'Reporter'
+    : item.id === 'logs' ? 'Health'
+    : item.label
+
+  const PAGES = { 
+    overview: <OverviewPage stats={periodStats} summary={summary} equitySeries={equitySeries} rankings={rankings} filteredAccounts={filteredAccounts} monthlyRows={monthlyRows} snapshots={data?.equity_snapshots || []} sysData={sysData} lastUpdate={lastUpdate} periodRange={periodRange} isAdmin={isAdmin} onNavigate={setPage} />, 
+    advisors: <AdvisorsPage accounts={filteredAccounts} snapshots={data?.equity_snapshots || []} onEditName={openNameEditor} onDeleteAccount={openDeleteDialog} isAdmin={isAdmin} />, 
+    symbols:  <SymbolsPage symbols={symbols} />,
+    trades:   <TradesPage accounts={brokerScopedAccounts} isAdmin={isAdmin} lastUpdate={lastUpdate} />, 
+    mt5preview: <MT5PreviewPage accounts={brokerScopedAccounts} snapshots={data?.equity_snapshots || []} lastUpdate={lastUpdate} />,
+    history:  <HistoryPage accounts={accounts} isAdmin={isAdmin} />,
+    reporter: <ReporterPage accounts={accounts} lastUpdate={lastUpdate} isAdmin={isAdmin} />, 
+    logs:     <LogsPage sysData={sysData} accounts={accounts} lastUpdate={lastUpdate} /> 
+  }
+
+  return (
+    <>
+      <div className="dash">
+        {/* Sidebar (Desktop) */}
+        <div className="sb">
+          <div className="sb-logo">
+            <div className="sb-icon">TE</div>
+            <div>
+              <div className="sb-brand">The Entity</div>
+              <div className="sb-sub">Command Center</div>
+            </div>
+          </div>
+          <div className="sb-nav">
+            {NAV.map(n => (
+              <div key={n.id} className={`ni${page===n.id?" on":""}`} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
+                {n.icon} {n.label}
+              </div>
+            ))}
+          </div>
+          <div className="sb-foot">
+            <div className="lpill"><span className="ldot" />LIVE - {user.role} auth</div>
+          </div>
+        </div>
+
+        {/* Main */}
+        <div className="main">
+          <div className="tb">
+            <div className="tb-l">
+              <span className="tb-sec">Forex EA Portfolio Monitoring</span>
+              <span className="tb-title">{PAGE_TITLES[page]}</span>
+            </div>
+            
+            <button className="mobile-menu-btn" type="button" aria-label="Open mobile menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.t1} strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            </button>
+            
+            <div className="tb-r">
+              <span className="tb-time">{time.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
+              <button className="btn b-cmd" onClick={() => setCommandOpen(true)} type="button">Ctrl K</button>
+              {isAdmin && <label className="ach"><input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} /> Auto sync</label>}
+              {isAdmin && <button className="btn b-acc" onClick={syncNow}>{Ico.sync} Sync</button>}
+              <button className="btn b-sec" onClick={logout}>{Ico.logout} Logout</button>
+            </div>
+            {mobileMenuOpen && (
+              <>
+                <button className="mobile-menu-backdrop" type="button" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} />
+                <div className="mobile-action-menu">
+                  <div className="mobile-action-head">
+                    <span>{user.username || user.role}</span>
+                    <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">Close</button>
+                    <b>{user.role}</b>
+                  </div>
+                  <div className="mobile-page-grid">
+                    {NAV.map((item) => (
+                      <button
+                        key={`mobile-menu-${item.id}`}
+                        type="button"
+                        className={page === item.id ? 'on' : ''}
+                        onClick={() => { setPage(item.id); setMobileMenuOpen(false); }}
+                      >
+                        {item.icon}<span>{mobileLabel(item)}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {isAdmin && (
+                    <label className="mobile-action-row">
+                      <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+                      Auto sync
+                    </label>
+                  )}
+                  {isAdmin && (
+                    <button className="mobile-action-row" type="button" onClick={() => { syncNow(); setMobileMenuOpen(false); }}>
+                      {Ico.sync} Sync now
+                    </button>
+                  )}
+                  <button className="mobile-action-row" type="button" onClick={() => { setCommandOpen(true); setMobileMenuOpen(false); }}>
+                    {Ico.overview} Command palette
+                  </button>
+                  <button className="mobile-action-row danger" type="button" onClick={logout}>
+                    {Ico.logout} Logout
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {error && <div style={{ background: C.redD, color: C.red, padding: '10px 20px', fontSize: 13, borderBottom: `1px solid ${C.red}` }}>{error}</div>}
+          {notice && <div className="app-notice">{notice}</div>}
+
+          {/* Page-specific filters */}
+          {showFilterBar && (
+            <div className="filter-shell">
+              <div className="filter-bar">
+                <BrokerAccountFilter brokers={brokers} accounts={accounts} selected={brokerFilter} onSelect={setBrokerFilter} />
+                {showPeriodFilter && (
+                  <PeriodFilter
+                  value={periodKey}
+                  onChange={setPeriodKey}
+                  range={periodRange}
+                  customStart={customStart}
+                    customEnd={customEnd}
+                    onCustomStart={setCustomStart}
+                    onCustomEnd={setCustomEnd}
+                  />
+                )}
+                {showAccountTools && (
+                  <div className="filter-tools">
+                    <select className="fctl" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                      <option value="all">All status</option>
+                      <option value="live">Live</option>
+                      <option value="stale">Stale</option>
+                      <option value="offline">Offline</option>
+                    </select>
+                    <select className="fctl wide" value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
+                      <option value="equity-desc">Equity high to low</option>
+                      <option value="equity-asc">Equity low to high</option>
+                      <option value="floating-desc">Floating high to low</option>
+                      <option value="floating-asc">Floating low to high</option>
+                      <option value="dd-desc">Peak DD high to low</option>
+                      <option value="name-asc">Name A to Z</option>
+                    </select>
+                    <select className="fctl wide" value={strategyFilter} onChange={(event) => setStrategyFilter(event.target.value)}>
+                      <option value="all">All strategies</option>
+                      {strategyOptions.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
+                    </select>
+                    <input
+                      className="fctl search"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Search account"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="page" key={page}>{PAGES[page]}</div>
+        </div>
+      </div>
+      
+      {/* Mobile Bottom Navigation */}
+      <div className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
+        {MOBILE_NAV.map(n => (
+          <div key={n.id} className={`mobile-ni ${page===n.id?"on":""}`} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
+            {n.icon} <span>{mobileLabel(n)}</span>
+          </div>
+        ))}
+        {MOBILE_MORE_NAV.length > 0 && (
+          <div className={`mobile-ni ${MOBILE_MORE_NAV.some((item) => item.id === page) ? 'on' : ''}`} onClick={() => setMobileMenuOpen(true)}>
+            {Ico.logs} <span>More</span>
+          </div>
+        )}
+      </div>
+
+      {isAdmin && <AccountNameDialog account={editingAccount} value={editingName} onChange={setEditingName} onCancel={closeNameEditor} onSave={saveAccountName} saving={savingName} />}
+      {isAdmin && <DeleteAccountDialog account={deletingAccount} confirmation={deleteConfirmation} onConfirmationChange={setDeleteConfirmation} onCancel={closeDeleteDialog} onDelete={deletePortfolio} deleting={deletingPortfolio} />}
+      <CommandPalette
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        onNavigate={setPage}
+        onSync={syncNow}
+        isAdmin={isAdmin}
+        accounts={filteredAccounts}
+      />
+    </>
+  )
+}
