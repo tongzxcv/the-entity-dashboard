@@ -285,6 +285,7 @@ button:disabled{cursor:progress;opacity:0.72}
 .mini-tag.risk-low{color:#49D993;background:rgba(73,217,147,.10);border-color:rgba(73,217,147,.18)}
 .mini-tag.risk-medium{color:#EFBF5A;background:rgba(239,191,90,.10);border-color:rgba(239,191,90,.20)}
 .mini-tag.risk-high{color:#FF6B82;background:rgba(255,107,130,.10);border-color:rgba(255,107,130,.20)}
+.mini-tag.risk-extreme{color:#FF2F6D;background:rgba(255,47,109,.14);border-color:rgba(255,47,109,.34)}
 .eakg{display:grid;grid-template-columns:1fr 1fr;background:rgba(207,226,255,0.08);gap:1px}
 .eak{background:#101827;padding:11px 12px}
 .eakl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7892B2;margin-bottom:4px}

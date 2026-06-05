@@ -536,9 +536,7 @@ function buildAccountPeriodStats(account) {
 function inferEaProfile(account, snapshots = []) {
   const name = accountLabel(account).toLowerCase()
   const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
-  const openLots = accountOpenLots(account)
   const maxDd = accountMaxDrawdown(account, snapshots)
-  const floatingPct = pctOfBalance(Number(account.equity || 0) - Number(account.balance || 0), account.balance)
   let strategy = 'Portfolio EA'
   if (name.includes('manual') || name.includes('hand')) strategy = 'Manual'
   else if (name.includes('janus')) strategy = 'JANUS'
@@ -548,8 +546,9 @@ function inferEaProfile(account, snapshots = []) {
 
   let risk = 'Low risk'
   let level = 'low'
-  if (maxDd >= 10 || floatingPct <= -8 || openLots >= 20) { risk = 'High risk'; level = 'high' }
-  else if (maxDd >= 3 || floatingPct <= -3 || openLots >= 5) { risk = 'Medium risk'; level = 'medium' }
+  if (maxDd > 50) { risk = 'Extreme risk'; level = 'extreme' }
+  else if (maxDd > 30) { risk = 'High risk'; level = 'high' }
+  else if (maxDd > 10) { risk = 'Medium risk'; level = 'medium' }
   return { strategy, risk, level }
 }
 
