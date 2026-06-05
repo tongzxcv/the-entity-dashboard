@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "qa:production": "node scripts/production-regression.mjs"
+    "qa:production": "node scripts/production-regression.mjs",
+    "test:ui-shell": "node scripts/ui-shell-regression.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

@@ -1,5 +1,11 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts"
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts"
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
@@ -1629,7 +1635,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
                     tickFormatter={v => "$"+Math.round(v/1000)+"K"}
                     domain={["auto","auto"]}
                   />
-                  <Tooltip content={<ChartTooltip />} />
+                  <RechartsTooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="v" stroke={C.acc} strokeWidth={1.5} fill="url(#eg)" dot={false} />
                 </AreaChart>
               ) : null}
@@ -3309,7 +3315,7 @@ export default function App() {
           </div>
           <div className="sb-nav">
             {NAV.map(n => (
-              <div key={n.id} className={`ni${page===n.id?" on":""}`} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
+              <div key={n.id} className={cn('ni', page === n.id && 'on')} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
                 {n.icon} {n.label}
               </div>
             ))}
@@ -3327,58 +3333,79 @@ export default function App() {
               <span className="tb-title">{PAGE_TITLES[page]}</span>
             </div>
             
-            <button className="mobile-menu-btn" type="button" aria-label="Open mobile menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.t1} strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-            </button>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button className="mobile-menu-btn" variant="ghost" size="icon" type="button" aria-label="Open mobile menu" aria-expanded={mobileMenuOpen}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.t1} strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[min(360px,calc(100vw-24px))] border-border/70 bg-[#101827] p-3 text-foreground sm:max-w-sm">
+                <SheetHeader className="p-1 pb-2">
+                  <SheetTitle className="truncate font-['Chakra_Petch'] text-base text-foreground">{user.username || user.role}</SheetTitle>
+                  <SheetDescription className="font-['JetBrains_Mono'] text-[10px] uppercase tracking-[0.08em] text-primary">{user.role}</SheetDescription>
+                </SheetHeader>
+                <Separator className="my-2 bg-border/70" />
+                <div className="mobile-page-grid">
+                  {NAV.map((item) => (
+                    <Button
+                      key={`mobile-menu-${item.id}`}
+                      type="button"
+                      variant="ghost"
+                      className={cn(page === item.id && 'on')}
+                      onClick={() => { setPage(item.id); setMobileMenuOpen(false); }}
+                    >
+                      {item.icon}<span>{mobileLabel(item)}</span>
+                    </Button>
+                  ))}
+                </div>
+                <Separator className="my-2 bg-border/70" />
+                {isAdmin && (
+                  <label className="mobile-action-row">
+                    <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} aria-label="Toggle auto sync" />
+                    Auto sync
+                  </label>
+                )}
+                {isAdmin && (
+                  <Button className="mobile-action-row" type="button" variant="ghost" onClick={() => { syncNow(); setMobileMenuOpen(false); }}>
+                    {Ico.sync} Sync now
+                  </Button>
+                )}
+                <Button className="mobile-action-row" type="button" variant="ghost" onClick={() => { setCommandOpen(true); setMobileMenuOpen(false); }}>
+                  {Ico.overview} Command palette
+                </Button>
+                <Button className="mobile-action-row danger" type="button" variant="ghost" onClick={logout}>
+                  {Ico.logout} Logout
+                </Button>
+              </SheetContent>
+            </Sheet>
             
             <div className="tb-r">
               <span className="tb-time">{time.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
-              <button className="btn b-cmd" onClick={() => setCommandOpen(true)} type="button">Ctrl K</button>
-              {isAdmin && <label className="ach"><input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} /> Auto sync</label>}
-              {isAdmin && <button className="btn b-acc" onClick={syncNow}>{Ico.sync} Sync</button>}
-              <button className="btn b-sec" onClick={logout}>{Ico.logout} Logout</button>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button data-shell-action className="h-8 border-border/60 bg-secondary/70 px-3 font-['JetBrains_Mono'] text-[11px] text-muted-foreground hover:bg-secondary hover:text-primary" onClick={() => setCommandOpen(true)} type="button" variant="outline">
+                      Ctrl K
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Open command palette</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {isAdmin && (
+                <label className="ach">
+                  <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} aria-label="Toggle auto sync" />
+                  Auto sync
+                </label>
+              )}
+              {isAdmin && (
+                <Button data-shell-action className="h-8 bg-primary px-3 text-primary-foreground hover:bg-primary/90" onClick={syncNow}>
+                  {Ico.sync} Sync
+                </Button>
+              )}
+              <Button data-shell-action className="h-8 border-border/60 bg-secondary/70 px-3 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={logout} variant="outline">
+                {Ico.logout} Logout
+              </Button>
             </div>
-            {mobileMenuOpen && (
-              <>
-                <button className="mobile-menu-backdrop" type="button" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} />
-                <div className="mobile-action-menu">
-                  <div className="mobile-action-head">
-                    <span>{user.username || user.role}</span>
-                    <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">Close</button>
-                    <b>{user.role}</b>
-                  </div>
-                  <div className="mobile-page-grid">
-                    {NAV.map((item) => (
-                      <button
-                        key={`mobile-menu-${item.id}`}
-                        type="button"
-                        className={page === item.id ? 'on' : ''}
-                        onClick={() => { setPage(item.id); setMobileMenuOpen(false); }}
-                      >
-                        {item.icon}<span>{mobileLabel(item)}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {isAdmin && (
-                    <label className="mobile-action-row">
-                      <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-                      Auto sync
-                    </label>
-                  )}
-                  {isAdmin && (
-                    <button className="mobile-action-row" type="button" onClick={() => { syncNow(); setMobileMenuOpen(false); }}>
-                      {Ico.sync} Sync now
-                    </button>
-                  )}
-                  <button className="mobile-action-row" type="button" onClick={() => { setCommandOpen(true); setMobileMenuOpen(false); }}>
-                    {Ico.overview} Command palette
-                  </button>
-                  <button className="mobile-action-row danger" type="button" onClick={logout}>
-                    {Ico.logout} Logout
-                  </button>
-                </div>
-              </>
-            )}
           </div>
           
           {error && <div style={{ background: C.redD, color: C.red, padding: '10px 20px', fontSize: 13, borderBottom: `1px solid ${C.red}` }}>{error}</div>}
@@ -3437,14 +3464,14 @@ export default function App() {
       </div>
       
       {/* Mobile Bottom Navigation */}
-      <div className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
+      <div className={cn('mobile-nav', mobileMenuOpen && 'open')}>
         {MOBILE_NAV.map(n => (
-          <div key={n.id} className={`mobile-ni ${page===n.id?"on":""}`} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
+          <div key={n.id} className={cn('mobile-ni', page === n.id && 'on')} onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}>
             {n.icon} <span>{mobileLabel(n)}</span>
           </div>
         ))}
         {MOBILE_MORE_NAV.length > 0 && (
-          <div className={`mobile-ni ${MOBILE_MORE_NAV.some((item) => item.id === page) ? 'on' : ''}`} onClick={() => setMobileMenuOpen(true)}>
+          <div className={cn('mobile-ni', MOBILE_MORE_NAV.some((item) => item.id === page) && 'on')} onClick={() => setMobileMenuOpen(true)}>
             {Ico.logs} <span>More</span>
           </div>
         )}
