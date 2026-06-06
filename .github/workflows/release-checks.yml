@@ -1,0 +1,66 @@
+name: Release Checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_production_qa:
+        description: Run qa:production against BASE_URL using QA_ADMIN_PASSWORD secret
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      base_url:
+        description: Production base URL
+        required: true
+        default: "http://161.118.245.238:3000"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  release-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run UI regression suite
+        run: npm run test:ui-all
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Run production QA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_production_qa == 'true' }}
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          QA_ADMIN_PASSWORD: ${{ secrets.QA_ADMIN_PASSWORD }}
+          CHROME_PATH: /usr/bin/google-chrome
+          OUTPUT_DIR: ${{ runner.temp }}/the-entity-production-qa
+        run: |
+          if [ -z "$QA_ADMIN_PASSWORD" ]; then
+            echo "QA_ADMIN_PASSWORD secret is required when run_production_qa=true" >&2
+            exit 1
+          fi
+          npm run qa:production
+
+      - name: Upload production QA screenshots
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_production_qa == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-qa-artifacts
+          path: ${{ runner.temp }}/the-entity-production-qa
+          if-no-files-found: ignore

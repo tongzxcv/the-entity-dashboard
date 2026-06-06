@@ -15,13 +15,19 @@ Forex EA portfolio monitoring dashboard for MT5 reporter data.
 
 ```powershell
 npm install
+npm run test:ui-all
 npm run build
 ```
+
+## Deploy checklist
+
+See [`docs/DEPLOY_CHECKLIST.md`](docs/DEPLOY_CHECKLIST.md) before publishing a new production build.
 
 ## Production regression
 
 ```powershell
 $env:BASE_URL="http://161.118.245.238:3000"
+$env:QA_ADMIN_PASSWORD="<from safe secret store>"
 npm run qa:production
 ```
 
