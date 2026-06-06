@@ -7,6 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "qa:production": "node scripts/production-regression.mjs",
+    "test:ui-all": "node scripts/ui-all-regression.mjs",
     "test:ui-shell": "node scripts/ui-shell-regression.mjs",
     "test:ui-login": "node scripts/ui-login-regression.mjs",
     "test:ui-overview": "node scripts/ui-overview-regression.mjs",

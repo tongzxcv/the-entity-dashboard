@@ -210,6 +210,8 @@ button:disabled{cursor:progress;opacity:0.72}
 /* Chart */
 .cwrap{height:198px;min-height:198px;min-width:1px;width:100%;max-width:100%;padding:10px 6px 8px 0;overflow:hidden}
 .cwrap>svg,.cwrap .recharts-wrapper,.cwrap .recharts-surface{max-width:100%!important}
+.ct{background:#162235;border:1px solid rgba(207,226,255,.14);border-radius:6px;padding:6px 11px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#F2F7FF;box-shadow:0 10px 22px rgba(0,0,0,.28)}
+.chart-loading{height:100%;display:flex;align-items:center;justify-content:center;color:#7892B2;font-family:'JetBrains Mono',monospace;font-size:11px}
 
 /* Portfolio */
 .pi{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(207,226,255,0.08);transition:background .15s}
@@ -431,18 +433,7 @@ button:disabled{cursor:progress;opacity:0.72}
 .logsv{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#F2F7FF}
 .logbar{height:3px;background:rgba(207,226,255,0.08);border-radius:2px;overflow:hidden;margin-top:10px}
 .logfill{height:100%;border-radius:2px;background:#38D5C8}
-.logrow{padding:9px 13px;border-bottom:1px solid rgba(207,226,255,0.08);font-family:'JetBrains Mono',monospace;font-size:10.5px;display:flex;gap:10px;align-items:baseline}
-.logrow:last-child{border-bottom:none}
-.logts{color:#7892B2;flex-shrink:0;font-size:9.5px}
-.logi{color:#74B8FF;flex-shrink:0}
-.logw{color:#EFBF5A;flex-shrink:0}
-.logm{color:#AFC2D8}
-
 /* Reporter */
-.repgrid{display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:12px;padding:16px}
-.epbox{padding:10px 12px;background:#162235;border:1px solid rgba(207,226,255,0.08);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#38D5C8;word-break:break-all;margin-bottom:8px}
-.epdesc{font-size:10.5px;color:#7892B2;line-height:1.6}
-.epcode{color:#38D5C8;background:rgba(56,213,200,0.09);padding:1px 4px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:10px}
 .dlbtn{width:100%;padding:14px;background:linear-gradient(90deg,#38D5C8,#74B8FF);color:#000;font-family:'Chakra Petch',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;border:none;cursor:pointer;border-top:1px solid rgba(207,226,255,0.08);display:flex;align-items:center;justify-content:center;gap:8px;transition:filter .15s}
 .dlbtn:hover{filter:brightness(1.1)}
 .reporter-hero{max-width:1180px}

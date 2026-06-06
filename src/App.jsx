@@ -1,5 +1,4 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts"
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +18,7 @@ const API_URL = import.meta.env.VITE_API_URL || ''
 const INGEST_ENDPOINT = `${window.location.origin}/api/mt5/update`
 const REPORTER_PATH = '/mt5/MT5DashboardReporter.mq5'
 const REPORTER_EX5_PATH = '/mt5/MT5DashboardReporter.ex5'
+const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))
 
 // โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 const C = {
@@ -790,16 +790,6 @@ function TradingViewForexHeatmapWidget() {
 }
 
 // โ”€โ”€ TOOLTIP โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
-function ChartTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const v = payload[0]?.value;
-  return (
-    <div style={{ background:C.bg3, border:`1px solid ${C.br1}`, borderRadius:6, padding:"6px 11px", fontFamily:C.fn, fontSize:11, color:C.t1 }}>
-      ${v?.toLocaleString("en", { maximumFractionDigits:0 })}
-    </div>
-  );
-}
-
 // โ”€โ”€ COMPONENTS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 function AccountNameDialog({ account, value, onChange, onCancel, onSave, saving }) {
   if (!account) return null
@@ -1623,7 +1613,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState(null)
   const [expandedMonth, setExpandedMonth] = useState(null)
   
-  // Format equity series for recharts
+  // Format equity series for the lazy-loaded chart module
   const chartPoints = equitySeries.length >= 2 ? equitySeries : [{ date: 'Baseline', value: 0 }, { date: 'Now', value: 0 }]
   const mappedEquity = chartPoints.map((pt, i) => ({ i: pt.date, v: pt.value }))
   
@@ -1818,24 +1808,15 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             </div>
             <div className="cwrap" ref={chartWrapRef}>
               {chartSize.width > 0 && chartSize.height > 0 ? (
-                <AreaChart width={chartSize.width} height={chartSize.height} data={visibleData} margin={{ top:4, right:46, left:0, bottom:0 }}>
-                  <defs>
-                    <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.acc} stopOpacity={0.22} />
-                      <stop offset="95%" stopColor={C.acc} stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="i" hide />
-                  <YAxis
-                    orientation="right"
-                    tickLine={false} axisLine={false}
-                    tick={{ fill:C.t3, fontSize:9, fontFamily:"JetBrains Mono" }}
-                    tickFormatter={v => "$"+Math.round(v/1000)+"K"}
-                    domain={["auto","auto"]}
+                <React.Suspense fallback={<div className="chart-loading">Loading chart...</div>}>
+                  <EquityAreaChart
+                    width={chartSize.width}
+                    height={chartSize.height}
+                    data={visibleData}
+                    accentColor={C.acc}
+                    mutedColor={C.t3}
                   />
-                  <RechartsTooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="v" stroke={C.acc} strokeWidth={1.5} fill="url(#eg)" dot={false} />
-                </AreaChart>
+                </React.Suspense>
               ) : null}
             </div>
           </div>

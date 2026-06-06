@@ -63,6 +63,15 @@ const checks = [
       app.includes('<Card className="kpi"'),
   },
   {
+    name: 'Overview equity chart is lazy-loaded outside the main App module',
+    ok:
+      app.includes("const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))") &&
+      overview.includes('<React.Suspense') &&
+      overview.includes('<EquityAreaChart') &&
+      !app.includes("from 'recharts'") &&
+      !app.includes('from "recharts"'),
+  },
+  {
     name: 'Overview admin-only attention remains gated',
     ok: overview.includes('{isAdmin && <AttentionRequired'),
   },
