@@ -85,7 +85,7 @@ async function mobileChecks(browser) {
   const errors = []
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
   await login(page, 'demo', 'demo')
-  await page.getByRole('button', { name: 'Custom', exact: true }).click()
+  await page.getByRole('tab', { name: 'Custom', exact: true }).click()
   await page.getByText('Waiting for date range', { exact: true }).waitFor()
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -114,10 +114,8 @@ async function historyCustomChecks(browser) {
     } else {
       await page.getByText('History', { exact: true }).first().click()
     }
-    const periodSelect = page.locator('.history-controls select').first()
-    const options = await periodSelect.locator('option').evaluateAll((nodes) => nodes.map((node) => node.value))
-    check(`history custom option exists ${cfg.name}`, options.includes('custom'), options.join(', '))
-    await periodSelect.selectOption('custom')
+    await page.locator('.history-controls [role="combobox"]').first().click()
+    await page.getByRole('option', { name: 'Custom', exact: true }).click()
     await page.locator('.history-custom-range input[type="date"]').first().waitFor()
     check(`history custom date inputs visible ${cfg.name}`, await page.locator('.history-custom-range input[type="date"]').count() === 2)
     await page.getByText(/Custom: select dates|Custom: complete dates|Custom: invalid range/).waitFor()
