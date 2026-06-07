@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,13 +22,13 @@ const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))
 
 // โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 const C = {
-  bg0:"#070B12", bg1:"#0B1220", bg2:"#101827", bg3:"#162235", bg4:"#1D2B42",
-  br0:"rgba(207,226,255,0.08)", br1:"rgba(207,226,255,0.14)", br2:"rgba(207,226,255,0.22)",
-  acc:"#38D5C8", accD:"rgba(56,213,200,0.11)", accG:"rgba(56,213,200,0.20)",
-  grn:"#49D993", grnD:"rgba(73,217,147,0.12)",
-  red:"#FF6B82", redD:"rgba(255,107,130,0.12)",
-  blu:"#74B8FF", yel:"#EFBF5A",
-  t1:"#F2F7FF", t2:"#AFC2D8", t3:"#7892B2",
+  bg0:"#080C14", bg1:"#0C1220", bg2:"#111926", bg3:"#172433", bg4:"#1E2D40",
+  br0:"rgba(200,218,238,0.08)", br1:"rgba(200,218,238,0.14)", br2:"rgba(200,218,238,0.22)",
+  acc:"#4E9F96", accD:"rgba(78,159,150,0.11)", accG:"rgba(78,159,150,0.20)",
+  grn:"#3DD68C", grnD:"rgba(61,214,140,0.12)",
+  red:"#F0607A", redD:"rgba(240,96,122,0.12)",
+  blu:"#6EAFF2", yel:"#E5A84B",
+  t1:"#F0F4FA", t2:"#A8BDCF", t3:"#738DA8",
   fn:"'JetBrains Mono',monospace",
   fh:"'Chakra Petch',sans-serif",
   fb:"'Outfit',sans-serif",
@@ -47,7 +47,11 @@ const Ico = {
   edit: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>,
   trash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
   logout: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 3v18"/></svg>,
-  lock: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  lock: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+  alert: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+  stop: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2h8l6 6v8l-6 6H8l-6-6V8l6-6Z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg>,
+  trendUp: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>,
+  trendDown: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6 6 4-4 8 8"/><path d="M14 17h7v-7"/></svg>
 }
 
 // โ”€โ”€ HELPERS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
@@ -60,10 +64,10 @@ const fmtS = (v) => (Number(v || 0) >= 0 ? "+" : "-") + "$" + Math.abs(Number(v 
 const pclr = (v) => Number(v || 0) >= 0 ? C.grn : C.red
 const hmClr = (v) => {
   if (v === null || v === undefined) return "rgba(255,255,255,0.04)"
-  if (v > 10000) return "#1AD97C"
-  if (v > 1000)  return "#13A85E"
-  if (v > 0)     return "#0B6E3E"
-  return "#FF4C6B"
+  if (v > 10000) return "#2BD47E"
+  if (v > 1000)  return "#1BA85E"
+  if (v > 0)     return "#0F6E3E"
+  return "#F0607A"
 }
 const formatPercent = (v) => `${Number(v || 0).toFixed(2)}%`
 const resourceTone = (value) => {
@@ -865,7 +869,7 @@ function LoginScreen({ onLogin }) {
             <div className="sb-icon login-logo">TE</div>
             <div>
               <div className="brand-name">The Entity</div>
-              <div className="brand-sub">Forex EA Command Center</div>
+              <div className="brand-sub">Forex EA Portfolio Monitor</div>
             </div>
           </div>
           <div className="login-hero">
@@ -888,7 +892,7 @@ function LoginScreen({ onLogin }) {
             <CardHeader className="login-card-head">
               <div className="sec-lbl">Secure Access</div>
               <CardTitle>Sign In</CardTitle>
-              <CardDescription>Access your trading command center.</CardDescription>
+              <CardDescription>Sign in to your portfolio dashboard.</CardDescription>
             </CardHeader>
             <CardContent className="login-card-body">
               <label className="login-field">
@@ -917,7 +921,7 @@ function LoadingSkeleton() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg0, flexDirection: 'column', gap: 20 }}>
       <div className="sb-icon" style={{ width: 50, height: 50, fontSize: 18, animation: 'pulse 2s infinite' }}>TE</div>
-      <div style={{ color: C.t2, fontFamily: C.fn, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Initializing Command Center...</div>
+      <div style={{ color: C.t2, fontFamily: C.fn, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Loading portfolio data...</div>
     </div>
   )
 }
@@ -1078,7 +1082,7 @@ function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }
         <div className="command-head">
           <div>
             <span>Command Palette</span>
-            <b>Jump to pages or run safe actions</b>
+            <b>Navigate or run safe actions</b>
           </div>
           <kbd>Esc</kbd>
         </div>
@@ -1101,7 +1105,7 @@ function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }
         </div>
         <div className="command-foot">
           <span>Ctrl/⌘ + K</span>
-          <em>{isAdmin ? 'Admin commands enabled' : 'Demo-safe commands only'}</em>
+          <em>{isAdmin ? 'Admin mode' : 'Demo mode'}</em>
         </div>
       </div>
     </div>
@@ -1358,7 +1362,12 @@ function RiskDeskPage({ accounts, snapshots }) {
 // โ”€โ”€ PAGES โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 function ResponsiveSymbolRows({ symbols }) {
   if (symbols.length === 0) {
-    return <Card className="responsive-empty-card symbol-mobile-row">No symbol exposure.</Card>
+    return (
+      <Card className="responsive-empty-card symbol-mobile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '24px 12px' }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.grn} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>No open symbol exposure. All positions are closed.</span>
+      </Card>
+    )
   }
   return (
     <div className="responsive-row-list">
@@ -1385,7 +1394,12 @@ function ResponsiveSymbolRows({ symbols }) {
 
 function ResponsiveTradeRows({ trades, isAdmin }) {
   if (trades.length === 0) {
-    return <Card className="responsive-empty-card">No open trades right now.</Card>
+    return (
+      <Card className="responsive-empty-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '24px 12px' }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.grn} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>No open exposure. All EAs are idle.</span>
+      </Card>
+    )
   }
   return (
     <div className="responsive-row-list">
@@ -1543,8 +1557,8 @@ function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNav
     <div className="ops-brief" aria-label="Operational command brief">
       <div className="ops-brief-head">
         <div>
-          <span>Command Brief</span>
-          <b>What needs attention right now?</b>
+          <span>Operational Brief</span>
+          <b>What needs your attention?</b>
         </div>
         <em>{lastUpdate ? `Dashboard refreshed ${lastUpdate.toLocaleTimeString()}` : 'Waiting for dashboard refresh'}</em>
       </div>
@@ -1592,8 +1606,17 @@ function AttentionRequired({ accounts, snapshots = [] }) {
   )
 }
 
-function MetricCard({ label, value, tone = '', bar, meta }) {
+function MetricCard({ label, value, tone = '', bar, meta, compact = false }) {
   const badgeVariant = tone === 'r' ? 'loss' : tone === 'g' ? 'profit' : 'secondary'
+  if (compact) {
+    return (
+      <div className={`kpi-compact ${tone}`}>
+        <span className="kl-compact">{label}</span>
+        <strong className="kv-compact">{value}</strong>
+        <span className="km-compact">{meta}</span>
+      </div>
+    )
+  }
   return (
     <Card className="kpi">
       <div className="kbar" style={{ background: bar }} />
@@ -1606,17 +1629,115 @@ function MetricCard({ label, value, tone = '', bar, meta }) {
   )
 }
 
+function ActivityTimeline({ accounts, snapshots = [], isAdmin }) {
+  const items = []
+
+  accounts.forEach((account) => {
+    const age = getAge(account)
+    const label = isAdmin ? accountLabel(account) : maskAccountNumber(account.account_number)
+
+    if (age.seconds > 1800) {
+      items.push({
+        type: 'stale',
+        level: 'critical',
+        time: account.last_update ? new Date(String(account.last_update).replace(' ', 'T') + 'Z') : null,
+        title: `${label} reporting offline`,
+        detail: `Last sync was ${age.detail}. Check MT5 connection.`
+      })
+    } else {
+      items.push({
+        type: 'sync',
+        level: 'success',
+        time: account.last_update ? new Date(String(account.last_update).replace(' ', 'T') + 'Z') : null,
+        title: `${label} updated`,
+        detail: `Synced successfully (${age.detail}).`
+      })
+    }
+
+    const currentDd = Number(account.drawdown_percent || 0)
+    if (currentDd >= 5) {
+      items.push({
+        type: 'drawdown',
+        level: currentDd >= 15 ? 'critical' : 'warning',
+        time: account.last_update ? new Date(String(account.last_update).replace(' ', 'T') + 'Z') : null,
+        title: `${label} Drawdown Warning`,
+        detail: `Current DD at ${formatPercent(currentDd)}. Peak DD is ${formatPercent(accountMaxDrawdown(account, snapshots))}.`
+      })
+    }
+  })
+
+  const history = buildClosedHistoryRows(accounts).slice(0, 10)
+  history.forEach((row) => {
+    const label = isAdmin ? row.name : maskAccountNumber(row.account_number)
+    if (row.trades > 0) {
+      items.push({
+        type: 'deal',
+        level: row.pnl >= 0 ? 'success' : 'danger',
+        time: row.date ? new Date(row.date + 'T12:00:00') : null,
+        title: `${label} Closed Daily Deals`,
+        detail: `Closed ${row.trades} deals (${fmtLots(row.lots)} lots) for ${fmtS(row.pnl)} profit.`,
+        dateStr: row.date
+      })
+    }
+  })
+
+  const sortedItems = items.sort((a, b) => {
+    if (a.level === 'critical' && b.level !== 'critical') return -1
+    if (b.level === 'critical' && a.level !== 'critical') return 1
+    if (a.level === 'warning' && b.level === 'success') return -1
+    if (b.level === 'warning' && a.level === 'success') return 1
+    const tA = a.time ? a.time.getTime() : 0
+    const tB = b.time ? b.time.getTime() : 0
+    return tB - tA
+  }).slice(0, 8)
+
+  if (sortedItems.length === 0) {
+    return (
+      <div className="rp">
+        <div className="rpl">Activity Feed</div>
+        <div style={{ padding: 10, color: C.t3, fontSize: 11, textAlign: 'center' }}>No activities logged yet.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rp timeline-rp">
+      <div className="rpl">Activity Feed</div>
+      <div className="timeline-list">
+        {sortedItems.map((item, idx) => {
+          const typeIcon = item.type === 'stale' ? Ico.alert : item.type === 'drawdown' ? Ico.stop : item.type === 'deal' ? (item.level === 'success' ? Ico.trendUp : Ico.trendDown) : Ico.sync
+          return (
+            <div className={`timeline-item ${item.level}`} key={idx}>
+              <div className="timeline-icon">{typeIcon}</div>
+              <div className="timeline-content">
+                <div className="timeline-header">
+                  <span className="timeline-title">{item.title}</span>
+                  <span className="timeline-time">
+                    {item.dateStr ? item.dateStr : item.time ? item.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+                <div className="timeline-detail">{item.detail}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
 function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts, monthlyRows, snapshots = [], sysData, lastUpdate, periodRange, isAdmin = false, onNavigate }) {
   const [tr, setTr] = useState("ALL")
   const chartWrapRef = useRef(null)
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState(null)
   const [expandedMonth, setExpandedMonth] = useState(null)
-  
+
   // Format equity series for the lazy-loaded chart module
   const chartPoints = equitySeries.length >= 2 ? equitySeries : [{ date: 'Baseline', value: 0 }, { date: 'Now', value: 0 }]
   const mappedEquity = chartPoints.map((pt, i) => ({ i: pt.date, v: pt.value }))
-  
+
   // Slicing logic
   const slices = { ALL: Infinity, "30D": 30, "7D": 7, "24H": 4, "6H": 2, "1H": 1 }
   const requestedSize = slices[tr] || Infinity
@@ -1656,7 +1777,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
     item.rows.push(row)
     byDate.set(row.date, item)
   })
-  
+
   const dates = []
   const start = new Date()
   start.setDate(start.getDate() - 364)
@@ -1665,7 +1786,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
     date.setDate(start.getDate() + index)
     dates.push(dateKey(date))
   }
-  
+
   // Arrange heatmap into 7 rows (days) x 53 cols (weeks)
   const hmData = Array.from({ length: 7 }, () => Array(53).fill(null))
   dates.forEach((dateStr, idx) => {
@@ -1711,16 +1832,25 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         onNavigate={onNavigate}
       />
 
-      <div className="kpi-row">
-        {[
-          { lbl:"Total Balance", val:fmtM(stats.totalBalance), cls:"", bar:C.acc, meta:`Equity ${fmtM(stats.totalEquity)} | Float ${fmtS(stats.floating)}` },
-          { lbl:"Floating P&L",  val:fmtS(stats.floating),     cls:stats.floating >= 0 ? "g" : "r", bar:stats.floating >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.floating, stats.totalBalance))} open risk` },
-          { lbl:"Monthly P&L",   val:fmtS(stats.monthPnl),     cls:stats.monthPnl >= 0 ? "g" : "r", bar:stats.monthPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.monthPnl, stats.totalBalance))} this month` },
-          { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
-          { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
-        ].map(k => (
-          <MetricCard key={k.lbl} label={k.lbl} value={k.val} tone={k.cls} bar={k.bar} meta={k.meta} />
-        ))}
+      <div className="kpi-dashboard-layout">
+        <div className="kpi-hero-wrap">
+          <MetricCard
+            label="Total Balance"
+            value={fmtM(stats.totalBalance)}
+            bar={C.acc}
+            meta={`Equity ${fmtM(stats.totalEquity)} | Float ${fmtS(stats.floating)}`}
+          />
+        </div>
+        <div className="kpi-strip-wrap">
+          {[
+            { lbl:"Floating P&L",  val:fmtS(stats.floating),     cls:stats.floating >= 0 ? "g" : "r", bar:stats.floating >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.floating, stats.totalBalance))} open risk` },
+            { lbl:"Monthly P&L",   val:fmtS(stats.monthPnl),     cls:stats.monthPnl >= 0 ? "g" : "r", bar:stats.monthPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.monthPnl, stats.totalBalance))} this month` },
+            { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
+            { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
+          ].map(k => (
+            <MetricCard key={k.lbl} label={k.lbl} value={k.val} tone={k.cls} bar={k.bar} meta={k.meta} compact={true} />
+          ))}
+        </div>
       </div>
 
       <div className="period-insight">
@@ -1748,12 +1878,10 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
 
       <div className="stat-row">
         {[
-          { l:"Active EAs",    v:summary.activeEas.toString(),  c:"a", s:`${summary.openTrades} open trades` },
-          { l:`Closed Deals - ${reportingDayLabel(summary.reportingDate)}`, v:summary.todayTrades.toString(),c:"", s:summary.reportingDate || "waiting for reporter data" },
-          { l:"Closed Lots",   v:summary.totalLots.toFixed(2),  c:"",  s:"closed volume" },
-          { l:"Live Ports",    v:summary.liveAccounts.toString(),c:"a",s:"currently active" },
-          { l:"Open Trades",   v:summary.openTrades.toString(), c:"", s:"currently running" },
-          { l:"Profitable Day Rate", v:formatPercent(summary.overallWinRate), c:"g", s:`${summary.tradeDays} account-days with deals` },
+          { l:"Active EAs / Live Ports", v:`${summary.activeEas} / ${summary.liveAccounts}`, c:"a", s:"reporting / configured" },
+          { l:"Open Trades Exposure", v:summary.openTrades.toString(), c:"", s:"currently running trades" },
+          { l:"Closed Deals / Lots Today", v:`${summary.todayTrades} / ${summary.totalLots.toFixed(2)}`, c:"", s:"closed volume" },
+          { l:"Profitable Day Rate", v:formatPercent(summary.overallWinRate), c:"g", s:`${summary.tradeDays} trading days` },
         ].map(s => (
           <div className="stat" key={s.l}>
             <div className="sl">{s.l}</div>
@@ -1897,6 +2025,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               </div>
             </>
           )}
+          <ActivityTimeline accounts={filteredAccounts} snapshots={snapshots} isAdmin={isAdmin} />
           <WeekendExposureCard accounts={filteredAccounts} compact />
           {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
         </div>
@@ -2239,12 +2368,12 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
   const [sortField, setSortField] = useState('equity')
   const [sortAsc, setSortAsc] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState(null)
-  
+
   const handleSort = (field) => {
     if (sortField === field) setSortAsc(!sortAsc)
     else { setSortField(field); setSortAsc(false) }
   }
-  
+
   const sortedAccounts = useMemo(() => {
     return [...accounts].sort((a, b) => {
       let valA, valB
@@ -2253,7 +2382,7 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
       else if (sortField === 'floating') { valA = Number(a.equity||0)-Number(a.balance||0); valB = Number(b.equity||0)-Number(b.balance||0) }
       else if (sortField === 'dd') { valA = accountMaxDrawdown(a, snapshots); valB = accountMaxDrawdown(b, snapshots) }
       else if (sortField === 'name') { valA = accountLabel(a); valB = accountLabel(b) }
-      
+
       if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA)
       return sortAsc ? valA - valB : valB - valA
     })
@@ -2317,14 +2446,14 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
           const openLots = accountOpenLots(ea)
           const isSelected = selectedAccountData?.account_number === ea.account_number
           const profile = inferEaProfile(ea, snapshots)
-          
+
           return (
             <Card
-              className={cn('eac', isSelected && 'selected')}
+              className={cn('eac', isSelected && 'selected', 'risk-' + profile.level)}
               key={ea.account_number}
               onClick={() => selectAccount(ea.account_number)}
             >
-              <div className="eatop" style={{ background: profile.level === 'high' ? C.red : profile.level === 'medium' ? C.yel : floating >= 0 ? C.grn : C.blu }} />
+              <div className="eatop" style={{ background: profile.level === 'high' || profile.level === 'extreme' ? C.red : profile.level === 'medium' ? C.yel : floating >= 0 ? C.grn : C.blu }} />
               <CardHeader className="each p-0">
                 <div style={{minWidth:0, paddingRight:10}}>
                   <div className="eaname" style={{display:'flex', alignItems:'center', gap:6}}>
@@ -2340,22 +2469,33 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                 </div>
                 <StatusBadge age={age} />
               </CardHeader>
-              <CardContent className="eakg p-0">
+              <CardContent className="eakg-new">
+                <div className="eak-full">
+                  <div className="eak-balance-equity">
+                    <div>
+                      <span className="eakl">Balance</span>
+                      <strong className="eakv">{fmtM(ea.balance)}</strong>
+                    </div>
+                    <div>
+                      <span className="eakl">Equity</span>
+                      <strong className="eakv">{fmtM(ea.equity)}</strong>
+                    </div>
+                  </div>
+                </div>
                 {[
-                  ["Balance",   fmtM(ea.balance),  ""],
-                  ["Equity",    fmtM(ea.equity),   ""],
                   ["Peak DD",   maxDrawdown.toFixed(2)+"%", maxDrawdown>5?"r":"y"],
                   ["Floating",  fmtS(floating),    floating>=0?"g":"r"],
                   [`${reportingDayLabel(latestHistoryRow(ea)?.date)} P&L`, fmtS(dailyProfit), dailyProfit>=0?"g":"r"],
-                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Closed Deals`, todayTrades, ""],
-                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Closed Lots`, fmtLots(todayLots), ""],
                   ["Open Lots", openLots.toFixed(2), ""],
-                ].map(([l,v,c]) => (
-                  <div className="eak" key={l}>
-                    <div className="eakl">{l}</div>
-                    <div className={`eakv${c?" "+c:""}`}>{v}</div>
-                  </div>
-                ))}
+                ].map(([l,v,c]) => {
+                  const isHighlight = l.includes("P&L")
+                  return (
+                    <div className={cn("eak", isHighlight && "eak-highlight", isHighlight && c)} key={l}>
+                      <div className="eakl">{l}</div>
+                      <div className={`eakv${c?" "+c:""}`}>{v}</div>
+                    </div>
+                  )
+                })}
               </CardContent>
             </Card>
           )
@@ -2517,7 +2657,16 @@ function SymbolsPage({ symbols }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibleSymbols.length === 0 ? <TableRow><TableCell colSpan="7" className="empty-table-cell">No symbol exposure.</TableCell></TableRow> : visibleSymbols.map((symbol) => (
+              {visibleSymbols.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan="7" className="empty-table-cell">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.t3 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.grn} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>No open symbol exposure. All positions are closed.</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : visibleSymbols.map((symbol) => (
                 <TableRow key={`row-${symbol.symbol}`}>
                   <TableCell data-label="Symbol" className="tn">{symbol.symbol}</TableCell>
                   <TableCell data-label="Category"><Badge variant="secondary" className="mini-tag">{symbol.category}</Badge></TableCell>
@@ -2541,7 +2690,7 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
   const [tab, setTab] = useState("all")
   const [direction, setDirection] = useState("all")
   const [symbolFilter, setSymbolFilter] = useState("all")
-  
+
   const tradeRows = accounts.flatMap((account) =>
     (account.open_trades || account.trades || []).map((trade) => ({
       ...trade,
@@ -2647,7 +2796,14 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
             </TableHeader>
             <TableBody>
               {visibleTrades.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="empty-table-cell">No open trades right now.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 7 : 6} className="empty-table-cell">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.t3 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.grn} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>No open exposure. All EAs are idle.</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : visibleTrades.map((t, index) => (
                 <TableRow key={`${t.account.account_number}-${t.ticket}`}>
                   <TableCell data-label="EA / Account">
@@ -3380,7 +3536,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
-  
+
   const [brokerFilter, setBrokerFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortMode, setSortMode] = useState('equity-desc')
@@ -3398,7 +3554,7 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  
+
   const isAdmin = user?.role === 'admin'
 
   // Clock
@@ -3480,7 +3636,7 @@ export default function App() {
   }, [fetchDashboard, fetchLogs, fetchSystem, isAdmin])
 
   useEffect(() => { checkSession() }, [checkSession])
-  
+
   useEffect(() => {
     if (!user) return
     fetchDashboard()
@@ -3489,7 +3645,7 @@ export default function App() {
       fetchLogs()
     }
   }, [fetchDashboard, fetchSystem, fetchLogs, user, isAdmin])
-  
+
   useEffect(() => {
     if (!autoRefresh || !user) return undefined
     const timer = window.setInterval(() => {
@@ -3590,7 +3746,7 @@ export default function App() {
     const values = new Set(accounts.map((account) => inferEaProfile(account, data?.equity_snapshots || []).strategy))
     return Array.from(values).sort()
   }, [accounts, data?.equity_snapshots])
-  
+
   const filteredAccounts = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     const getStatus = (account) => {
@@ -3676,15 +3832,15 @@ export default function App() {
     : item.id === 'logs' ? 'Health'
     : item.label
 
-  const PAGES = { 
-    overview: <OverviewPage stats={periodStats} summary={summary} equitySeries={equitySeries} rankings={rankings} filteredAccounts={filteredAccounts} monthlyRows={monthlyRows} snapshots={data?.equity_snapshots || []} sysData={sysData} lastUpdate={lastUpdate} periodRange={periodRange} isAdmin={isAdmin} onNavigate={setPage} />, 
-    advisors: <AdvisorsPage accounts={filteredAccounts} snapshots={data?.equity_snapshots || []} onEditName={openNameEditor} onDeleteAccount={openDeleteDialog} isAdmin={isAdmin} />, 
+  const PAGES = {
+    overview: <OverviewPage stats={periodStats} summary={summary} equitySeries={equitySeries} rankings={rankings} filteredAccounts={filteredAccounts} monthlyRows={monthlyRows} snapshots={data?.equity_snapshots || []} sysData={sysData} lastUpdate={lastUpdate} periodRange={periodRange} isAdmin={isAdmin} onNavigate={setPage} />,
+    advisors: <AdvisorsPage accounts={filteredAccounts} snapshots={data?.equity_snapshots || []} onEditName={openNameEditor} onDeleteAccount={openDeleteDialog} isAdmin={isAdmin} />,
     symbols:  <SymbolsPage symbols={symbols} />,
-    trades:   <TradesPage accounts={brokerScopedAccounts} isAdmin={isAdmin} lastUpdate={lastUpdate} />, 
+    trades:   <TradesPage accounts={brokerScopedAccounts} isAdmin={isAdmin} lastUpdate={lastUpdate} />,
     mt5preview: <MT5PreviewPage accounts={brokerScopedAccounts} snapshots={data?.equity_snapshots || []} lastUpdate={lastUpdate} />,
     history:  <HistoryPage accounts={accounts} isAdmin={isAdmin} />,
-    reporter: <ReporterPage accounts={accounts} lastUpdate={lastUpdate} isAdmin={isAdmin} />, 
-    logs:     <LogsPage sysData={sysData} accounts={accounts} lastUpdate={lastUpdate} /> 
+    reporter: <ReporterPage accounts={accounts} lastUpdate={lastUpdate} isAdmin={isAdmin} />,
+    logs:     <LogsPage sysData={sysData} accounts={accounts} lastUpdate={lastUpdate} />
   }
 
   return (
@@ -3696,7 +3852,7 @@ export default function App() {
             <div className="sb-icon">TE</div>
             <div>
               <div className="sb-brand">The Entity</div>
-              <div className="sb-sub">Command Center</div>
+              <div className="sb-sub">Portfolio Monitor</div>
             </div>
           </div>
           <div className="sb-nav">
@@ -3707,7 +3863,11 @@ export default function App() {
             ))}
           </div>
           <div className="sb-foot">
-            <div className="lpill"><span className="ldot" />LIVE - {user.role} auth</div>
+            <div className="lpill"><span className="ldot" />{user.role} / Live</div>
+            <div className="sb-foot-stats">
+              <div>Sync: {lastUpdate ? lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Waiting'}</div>
+              <div>Active: {accounts.filter((account) => getAge(account).seconds < 1800).length} EAs</div>
+            </div>
           </div>
         </div>
 
@@ -3715,17 +3875,17 @@ export default function App() {
         <div className="main">
           <div className="tb">
             <div className="tb-l">
-              <span className="tb-sec">Forex EA Portfolio Monitoring</span>
+              <span className="tb-sec">The Entity</span>
               <span className="tb-title">{PAGE_TITLES[page]}</span>
             </div>
-            
+
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button className="mobile-menu-btn" variant="ghost" size="icon" type="button" aria-label="Open mobile menu" aria-expanded={mobileMenuOpen}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.t1} strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[min(360px,calc(100vw-24px))] border-border/70 bg-[#101827] p-3 text-foreground sm:max-w-sm">
+              <SheetContent side="right" className="w-[min(360px,calc(100vw-24px))] border-border/70 bg-[#111926] p-3 text-foreground sm:max-w-sm">
                 <SheetHeader className="p-1 pb-2">
                   <SheetTitle className="truncate font-['Chakra_Petch'] text-base text-foreground">{user.username || user.role}</SheetTitle>
                   <SheetDescription className="font-['JetBrains_Mono'] text-[10px] uppercase tracking-[0.08em] text-primary">{user.role}</SheetDescription>
@@ -3764,7 +3924,7 @@ export default function App() {
                 </Button>
               </SheetContent>
             </Sheet>
-            
+
             <div className="tb-r">
               <span className="tb-time">{time.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
               <TooltipProvider delayDuration={150}>
@@ -3793,7 +3953,7 @@ export default function App() {
               </Button>
             </div>
           </div>
-          
+
           {error && <div style={{ background: C.redD, color: C.red, padding: '10px 20px', fontSize: 13, borderBottom: `1px solid ${C.red}` }}>{error}</div>}
           {notice && <div className="app-notice">{notice}</div>}
 
@@ -3833,7 +3993,7 @@ export default function App() {
           <div className="page" key={page}>{PAGES[page]}</div>
         </div>
       </div>
-      
+
       {/* Mobile Bottom Navigation */}
       <div className={cn('mobile-nav', mobileMenuOpen && 'open')}>
         {MOBILE_NAV.map(n => (

@@ -32,25 +32,25 @@
 :root {
   color-scheme: dark;
   --radius: 0.5rem;
-  --background: #09090b;
-  --foreground: #f4f4f5;
-  --card: #18181b;
-  --card-foreground: #f4f4f5;
-  --popover: #18181b;
-  --popover-foreground: #f4f4f5;
-  --primary: #22d3ee;
-  --primary-foreground: #020617;
-  --secondary: #27272a;
-  --secondary-foreground: #f4f4f5;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #0f766e;
-  --accent-foreground: #ecfeff;
-  --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #22d3ee;
+  --background: #0B1529;
+  --foreground: #E8EEF5;
+  --card: #121E30;
+  --card-foreground: #E8EEF5;
+  --popover: #13243D;
+  --popover-foreground: #E6EDF5;
+  --primary: #6C92B0;
+  --primary-foreground: #F8FBFF;
+  --secondary: #182B47;
+  --secondary-foreground: #D9E2EE;
+  --muted: #1F2D43;
+  --muted-foreground: #96A6C2;
+  --accent: #8AA3C6;
+  --accent-foreground: #F8FBFF;
+  --destructive: #E26A6B;
+  --destructive-foreground: #FFF1F2;
+  --border: #21344D;
+  --input: #172A3F;
+  --ring: #6C92B0;
 }
 
 * {
@@ -61,18 +61,18 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #0B1529;
+  color: #E8EEF5;
   line-height: 1.6;
 }
 
 a {
-  color: #60a5fa;
+  color: #8AA3C6;
   text-decoration: none;
 }
 
 a:hover {
-  color: #93c5fd;
+  color: #A8C0E4;
 }
 
 button {
