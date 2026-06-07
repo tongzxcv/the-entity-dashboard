@@ -3931,7 +3931,7 @@ export default function App() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button data-shell-action className="h-8 border-border/60 bg-secondary/70 px-3 font-['JetBrains_Mono'] text-[11px] text-muted-foreground hover:bg-secondary hover:text-primary" onClick={() => setCommandOpen(true)} type="button" variant="outline">
-                      Ctrl K
+                      Search
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Open command palette</TooltipContent>
