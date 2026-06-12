@@ -3820,7 +3820,7 @@ export default function App() {
 
   const showFilterBar = ['overview', 'advisors', 'trades', 'mt5preview'].includes(page)
   const showPeriodFilter = page === 'overview'
-  const showAccountTools = ['overview', 'advisors'].includes(page)
+  const showAccountTools = page === 'advisors'
   const MOBILE_PRIMARY_IDS = ['overview', 'advisors', 'trades', 'mt5preview', 'history']
   const MOBILE_NAV = NAV.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id))
   const MOBILE_MORE_NAV = NAV.filter((item) => !MOBILE_PRIMARY_IDS.includes(item.id))
