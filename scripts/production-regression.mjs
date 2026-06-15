@@ -18,7 +18,7 @@ async function login(page, username, password) {
   await page.getByPlaceholder('admin or demo').fill(username)
   await page.getByPlaceholder('Enter password').fill(password)
   await page.getByRole('button', { name: 'Login', exact: true }).click()
-  await page.getByText('Forex EA Portfolio Monitoring', { exact: true }).waitFor()
+  await page.getByText('What needs your attention?', { exact: true }).waitFor()
 }
 
 async function apiStatus(page, route) {
