@@ -448,6 +448,8 @@ button:disabled{cursor:progress;opacity:0.72}
 .config-input:focus-visible{box-shadow:none}
 .config-action{min-width:44px;height:44px;border-left:1px solid rgba(226,234,245,.10);border-radius:0;background:#121E30;color:#B3C1D8;font-family:'JetBrains Mono',monospace;font-size:11px}
 .config-action:hover:not(:disabled){color:#6C92B0;background:#172A3F}.config-action:disabled{opacity:.45;cursor:not-allowed}
+.config-action.copy-ok{color:#3DD68C;background:rgba(61,214,140,.14)}
+.config-action.copy-fail{color:#F0607A;background:rgba(240,96,122,.14)}
 .config-help{margin-top:7px;font-size:11px;line-height:1.55;color:#96A6C2}
 .reporter-status-card{background:#0C172B;border:1px solid rgba(226,234,245,.10);border-radius:9px;gap:0}
 .reporter-status-body{padding:9px 14px 14px}

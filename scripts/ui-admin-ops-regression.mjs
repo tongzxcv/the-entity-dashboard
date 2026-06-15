@@ -13,6 +13,7 @@ function sliceBetween(startMarker, endMarker) {
 }
 
 const configField = sliceBetween('function ConfigField', 'function ReporterPage')
+const copyHelper = sliceBetween('async function copyToClipboard', 'const accountLabel')
 const reporter = sliceBetween('function ReporterPage', 'function ResponsiveHealthRows')
 const responsiveHealthRows = sliceBetween('function ResponsiveHealthRows', 'function LogsPage')
 const logs = sliceBetween('function LogsPage', 'export default function App')
@@ -32,8 +33,12 @@ const checks = [
       app.includes("from '@/components/ui/tooltip'"),
   },
   {
-    name: 'ConfigField uses Card/Input/Button/Tooltip and keeps masked default display',
+    name: 'ConfigField uses Card/Input/Button/Tooltip, keeps masked default display, and copies through HTTP fallback',
     ok:
+      copyHelper.includes('window.isSecureContext') &&
+      copyHelper.includes('navigator.clipboard.writeText(text)') &&
+      copyHelper.includes("document.createElement('textarea')") &&
+      copyHelper.includes("document.execCommand('copy')") &&
       configField.includes('<Card') &&
       configField.includes('<CardHeader') &&
       configField.includes('<CardContent') &&
@@ -42,7 +47,8 @@ const checks = [
       configField.includes('<TooltipProvider') &&
       configField.includes('<TooltipTrigger asChild') &&
       configField.includes('masked && !revealed') &&
-      configField.includes('navigator.clipboard.writeText(value)') &&
+      configField.includes('copyToClipboard(value)') &&
+      configField.includes('copyState ===') &&
       configField.includes('disabled={!value || disabled}'),
   },
   {

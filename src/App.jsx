@@ -83,6 +83,38 @@ const maskAccountNumber = (value) => {
   if (str.length <= 4) return str
   return `${str.slice(0, 4)}****${str.slice(-2)}`
 }
+async function copyToClipboard(value) {
+  const text = String(value || '')
+  if (!text) return false
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // Fall back below. Production may run over plain HTTP, where Clipboard API is blocked.
+  }
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '-1000px'
+    textarea.style.left = '-1000px'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    textarea.setSelectionRange(0, text.length)
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return copied
+  } catch {
+    return false
+  }
+}
 const accountLabel = (account) => String(account?.display_name || '').trim() || maskAccountNumber(account?.account_number)
 const brokerKey = (name) => String(name || 'unknown').toLowerCase()
 const brokerMeta = (name) => {
@@ -3234,15 +3266,23 @@ function HistoryPage({ accounts, isAdmin = false }) {
 
 function ConfigField({ label, value, helper, masked = false, disabled = false }) {
   const [revealed, setRevealed] = useState(false)
+  const [copyState, setCopyState] = useState('idle')
   const displayValue = masked && !revealed
     ? value ? '*'.repeat(Math.min(36, String(value).length)) : 'Admin only'
     : value || 'Not configured'
   const copyValue = async () => {
     if (!value || disabled) return
-    try {
-      await navigator.clipboard.writeText(value)
-    } catch {}
+    const ok = await copyToClipboard(value)
+    setCopyState(ok ? 'copied' : 'failed')
+    window.setTimeout(() => setCopyState('idle'), 1400)
   }
+  const copyTooltip = disabled
+    ? 'Admin only'
+    : copyState === 'copied'
+      ? 'Copied'
+      : copyState === 'failed'
+        ? 'Copy failed'
+        : `Copy ${label}`
   return (
     <Card className="config-field">
       <CardHeader className="config-field-head">
@@ -3279,15 +3319,15 @@ function ConfigField({ label, value, helper, masked = false, disabled = false })
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="config-action"
+                  className={cn('config-action', copyState === 'copied' && 'copy-ok', copyState === 'failed' && 'copy-fail')}
                   onClick={copyValue}
                   disabled={!value || disabled}
-                  aria-label={`Copy ${label}`}
+                  aria-label={copyTooltip}
                 >
                   {Ico.copy}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{disabled ? 'Admin only' : `Copy ${label}`}</TooltipContent>
+              <TooltipContent>{copyTooltip}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
