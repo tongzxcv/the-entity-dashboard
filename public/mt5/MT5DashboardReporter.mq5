@@ -9,6 +9,7 @@ input bool   IncludeAllSymbols = true;
 input bool   IncludeDailyHistory = true;
 input int    HistoryLookbackDays = 365;
 input int    HistoryPushIntervalMinutes = 60;
+input double RebatePerLotUsd = 10.0;
 input bool   EnableReporter = true;
 
 datetime last_push = 0;
@@ -122,7 +123,8 @@ string BuildDailyHistoryJson(int lookback_days)
       json += "\"date\":\"" + stats[i].date + "\",";
       json += "\"daily_profit\":" + DoubleToString(stats[i].pnl, 2) + ",";
       json += "\"daily_trades\":" + IntegerToString(stats[i].trades) + ",";
-      json += "\"daily_lots\":" + DoubleToString(stats[i].lots, 2);
+      json += "\"daily_lots\":" + DoubleToString(stats[i].lots, 2) + ",";
+      json += "\"daily_rebate\":" + DoubleToString(stats[i].lots * RebatePerLotUsd, 2);
       json += "}";
    }
    json += "]";
@@ -289,11 +291,13 @@ string BuildPayload(bool include_history)
    int today_trades = 0;
    double today_lots = 0.0;
    GetTodayClosedStats(today_pnl, today_trades, today_lots);
+   double today_rebate = today_lots * RebatePerLotUsd;
 
    double total_closed_pnl = 0.0;
    int total_closed_trades = 0;
    double total_closed_lots = 0.0;
    GetClosedStats(0, TimeCurrent(), total_closed_pnl, total_closed_trades, total_closed_lots);
+   double total_rebate = total_closed_lots * RebatePerLotUsd;
 
    double peak_dd_amount = 0.0;
    double peak_dd_percent = 0.0;
@@ -312,9 +316,12 @@ string BuildPayload(bool include_history)
    payload += "\"today_pnl\":" + DoubleToString(today_pnl, 2) + ",";
    payload += "\"today_trades\":" + IntegerToString(today_trades) + ",";
    payload += "\"today_lots\":" + DoubleToString(today_lots, 2) + ",";
+   payload += "\"today_rebate\":" + DoubleToString(today_rebate, 2) + ",";
    payload += "\"total_closed_pnl\":" + DoubleToString(total_closed_pnl, 2) + ",";
    payload += "\"total_closed_trades\":" + IntegerToString(total_closed_trades) + ",";
    payload += "\"total_closed_lots\":" + DoubleToString(total_closed_lots, 2) + ",";
+   payload += "\"rebate_rate\":" + DoubleToString(RebatePerLotUsd, 2) + ",";
+   payload += "\"rebate_total\":" + DoubleToString(total_rebate, 2) + ",";
    payload += "\"peak_drawdown_amount\":" + DoubleToString(peak_dd_amount, 2) + ",";
    payload += "\"peak_drawdown_percent\":" + DoubleToString(peak_dd_percent, 2) + ",";
    payload += "\"reporting_date\":\"" + DateKey(TimeCurrent()) + "\"";

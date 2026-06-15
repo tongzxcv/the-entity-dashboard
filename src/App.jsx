@@ -18,6 +18,7 @@ const API_URL = import.meta.env.VITE_API_URL || ''
 const INGEST_ENDPOINT = `${window.location.origin}/api/mt5/update`
 const REPORTER_PATH = '/mt5/MT5DashboardReporter.mq5'
 const REPORTER_EX5_PATH = '/mt5/MT5DashboardReporter.ex5'
+const DEFAULT_REBATE_PER_LOT = 10
 const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))
 
 // โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
@@ -300,6 +301,28 @@ function accountClosedLots(account) {
   return historyLots > 0 ? historyLots : null
 }
 
+function accountRebateRate(account) {
+  const reported = numericField(account, ['rebate_rate', 'rebate_per_lot', 'cashback_rate', 'commission_rebate_rate', 'rebate_usd_per_lot'])
+  return reported !== null ? reported : DEFAULT_REBATE_PER_LOT
+}
+
+function accountReportedRebate(account) {
+  return numericField(account, ['rebate', 'rebate_total', 'total_rebate', 'cashback', 'commission_rebate'])
+}
+
+function accountRebate(account) {
+  const reported = accountReportedRebate(account)
+  if (reported !== null) return reported
+  return Number(accountClosedLots(account) || 0) * accountRebateRate(account)
+}
+
+function accountTodayRebate(account) {
+  const latest = latestHistoryRow(account)
+  const reported = numericField(latest, ['daily_rebate', 'rebate', 'total_rebate'])
+  if (reported !== null) return reported
+  return Number(latest?.daily_lots || 0) * accountRebateRate(account)
+}
+
 function accountTotalLots(account) {
   return Number(accountClosedLots(account) || 0)
 }
@@ -515,6 +538,7 @@ function buildSymbolExposure(accounts) {
 
 function buildAccountPeriodStats(account) {
   const history = account?.daily_history || []
+  const rebateRate = accountRebateRate(account)
   const reportingDate = history
     .map((row) => String(row.date || ''))
     .filter(Boolean)
@@ -530,17 +554,22 @@ function buildAccountPeriodStats(account) {
   history.forEach((row) => {
     const key = String(row.date || '')
     if (!key) return
-    const current = byDate.get(key) || { pnl: 0, trades: 0, lots: 0 }
+    const rowLots = Number(row.daily_lots || 0)
+    const rowRebate = numericField(row, ['daily_rebate', 'rebate', 'total_rebate'])
+    const rebate = rowRebate !== null ? rowRebate : rowLots * rebateRate
+    const current = byDate.get(key) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
     current.pnl += Number(row.daily_profit || 0)
     current.trades += Number(row.daily_trades || 0)
-    current.lots += Number(row.daily_lots || 0)
+    current.lots += rowLots
+    current.rebate += rebate
     byDate.set(key, current)
 
     const month = key.slice(0, 7)
-    const monthCurrent = byMonth.get(month) || { pnl: 0, trades: 0, lots: 0 }
+    const monthCurrent = byMonth.get(month) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
     monthCurrent.pnl += Number(row.daily_profit || 0)
     monthCurrent.trades += Number(row.daily_trades || 0)
-    monthCurrent.lots += Number(row.daily_lots || 0)
+    monthCurrent.lots += rowLots
+    monthCurrent.rebate += rebate
     byMonth.set(month, monthCurrent)
   })
 
@@ -562,18 +591,19 @@ function buildAccountPeriodStats(account) {
     const label = new Date(Number(yearKey), index, 1).toLocaleDateString(undefined, { month: 'short' })
     return { key: month, label, value: Number(byMonth.get(month)?.pnl || 0) }
   })
-  const todayData = byDate.get(reportingDate) || { pnl: 0, trades: 0, lots: 0 }
+  const todayData = byDate.get(reportingDate) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
   const weekData = weeklySeries.reduce((acc, point) => {
-    const item = byDate.get(point.key) || { pnl: 0, trades: 0, lots: 0 }
-    return { pnl: acc.pnl + item.pnl, trades: acc.trades + item.trades, lots: acc.lots + item.lots }
-  }, { pnl: 0, trades: 0, lots: 0 })
+    const item = byDate.get(point.key) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
+    return { pnl: acc.pnl + item.pnl, trades: acc.trades + item.trades, lots: acc.lots + item.lots, rebate: acc.rebate + item.rebate }
+  }, { pnl: 0, trades: 0, lots: 0, rebate: 0 })
   const monthData = history
     .filter((row) => String(row.date || '').startsWith(monthKey))
     .reduce((acc, row) => ({
       pnl: acc.pnl + Number(row.daily_profit || 0),
       trades: acc.trades + Number(row.daily_trades || 0),
       lots: acc.lots + Number(row.daily_lots || 0),
-    }), { pnl: 0, trades: 0, lots: 0 })
+      rebate: acc.rebate + (numericField(row, ['daily_rebate', 'rebate', 'total_rebate']) ?? (Number(row.daily_lots || 0) * rebateRate)),
+    }), { pnl: 0, trades: 0, lots: 0, rebate: 0 })
 
   return {
     today: { ...todayData, series: dailySeries, reportingDate },
@@ -603,16 +633,21 @@ function inferEaProfile(account, snapshots = []) {
 
 function buildClosedHistoryRows(accounts) {
   return accounts.flatMap((account) =>
-    (account.daily_history || []).map((row) => ({
-      date: row.date,
-      account,
-      account_number: account.account_number,
-      name: accountLabel(account),
-      broker: account.broker || 'Unknown broker',
-      pnl: Number(row.daily_profit || 0),
-      trades: Number(row.daily_trades || 0),
-      lots: Number(row.daily_lots || 0),
-    })),
+    (account.daily_history || []).map((row) => {
+      const lots = Number(row.daily_lots || 0)
+      const reportedRebate = numericField(row, ['daily_rebate', 'rebate', 'total_rebate'])
+      return {
+        date: row.date,
+        account,
+        account_number: account.account_number,
+        name: accountLabel(account),
+        broker: account.broker || 'Unknown broker',
+        pnl: Number(row.daily_profit || 0),
+        trades: Number(row.daily_trades || 0),
+        lots,
+        rebate: reportedRebate !== null ? reportedRebate : lots * accountRebateRate(account),
+      }
+    }),
   ).filter((row) => row.date).sort((a, b) => String(b.date).localeCompare(String(a.date)))
 }
 
@@ -635,16 +670,22 @@ function buildWeekendExposure(accounts) {
   return { rows, totalTrades, totalLots, totalFloating, isFridayWindow, isWeekend, level }
 }
 
-function accountRebate(account) {
-  return numericField(account, ['rebate', 'rebate_total', 'total_rebate', 'cashback', 'commission_rebate']) || 0
-}
-
 function buildRebateSummary(accounts) {
   const rows = accounts
-    .map((account) => ({ account, rebate: accountRebate(account), lots: accountClosedLots(account) || 0 }))
-    .filter((row) => Math.abs(row.rebate) > 0.0001)
+    .map((account) => {
+      const lots = accountClosedLots(account) || 0
+      const reported = accountReportedRebate(account)
+      const rate = accountRebateRate(account)
+      const rebate = reported !== null ? reported : lots * rate
+      return { account, rebate, lots, rate, estimated: reported === null }
+    })
+    .filter((row) => row.lots > 0 || Math.abs(row.rebate) > 0.0001)
+  const rates = Array.from(new Set(rows.map((row) => Number(row.rate || 0).toFixed(4))))
   return {
     total: rows.reduce((sum, row) => sum + row.rebate, 0),
+    totalLots: rows.reduce((sum, row) => sum + row.lots, 0),
+    rateLabel: rates.length === 1 ? `$${Number(rates[0]).toFixed(2)} / lot` : 'Mixed rates',
+    estimated: rows.some((row) => row.estimated),
     rows: rows.sort((a, b) => Math.abs(b.rebate) - Math.abs(a.rebate)),
     hasData: rows.length > 0,
   }
@@ -1295,14 +1336,14 @@ function RebateSummaryCard({ accounts }) {
       <div className="rpb" style={{ color: rebate.hasData ? C.grn : C.t2 }}>{fmtM(rebate.total)}</div>
       <div className="rps">
         {rebate.hasData
-          ? `${rebate.rows.length} accounts reported rebate or cashback fields.`
-          : 'No rebate feed yet. Ready for future broker cashback data.'}
+          ? `${rebate.totalLots.toFixed(2)} closed lots · ${rebate.rateLabel}${rebate.estimated ? ' estimate' : ''}`
+          : 'No closed lots yet. Rebate will appear after reporter sends closed history.'}
       </div>
       <div className="rebate-mini">
-        {(rebate.hasData ? rebate.rows.slice(0, 3) : accounts.slice(0, 3).map((account) => ({ account, rebate: 0, lots: accountClosedLots(account) || 0 }))).map((row) => (
+        {(rebate.hasData ? rebate.rows.slice(0, 3) : accounts.slice(0, 3).map((account) => ({ account, rebate: 0, lots: accountClosedLots(account) || 0, rate: accountRebateRate(account) }))).map((row) => (
           <div key={row.account.account_number}>
-            <span>{accountLabel(row.account)}</span>
-            <b>{rebate.hasData ? fmtM(row.rebate) : 'Demo'}</b>
+            <span>{accountLabel(row.account)} · {Number(row.lots || 0).toFixed(2)} lots</span>
+            <b>{rebate.hasData ? fmtM(row.rebate) : `$${Number(row.rate || DEFAULT_REBATE_PER_LOT).toFixed(2)}/lot`}</b>
           </div>
         ))}
       </div>
@@ -1485,6 +1526,7 @@ function ResponsiveHistoryRows({ rows }) {
             <div><span>P&L</span><b style={{ color:pclr(row.pnl) }}>{fmtS(row.pnl)}</b></div>
             <div><span>Closed Deals</span><b>{row.trades}</b></div>
             <div><span>Closed Lots</span><b>{row.lots.toFixed(2)}</b></div>
+            <div><span>Rebate</span><b style={{ color:C.grn }}>{fmtM(row.rebate)}</b></div>
           </CardContent>
         </Card>
       ))}
@@ -2317,6 +2359,7 @@ function PeriodCard({ label, stats, balance }) {
       <div className="period-meta">
         <span>{stats.trades} closed deals</span>
         <span>{Number(stats.lots || 0).toFixed(2)} lots</span>
+        <span>{fmtM(stats.rebate)} rebate</span>
       </div>
       <MiniPnlBars points={stats.series} balance={balance} />
     </div>
@@ -2337,6 +2380,8 @@ function AccountDrilldown({ account, snapshots = [] }) {
   const openLots = accountOpenLots(account)
   const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
   const closedLots = accountClosedLots(account)
+  const totalRebate = accountRebate(account)
+  const rebateRate = accountRebateRate(account)
   const recentDays = (account.daily_history || []).slice(0, 7)
   return (
     <Card className="ea-detail" id="ea-detail">
@@ -2369,6 +2414,8 @@ function AccountDrilldown({ account, snapshots = [] }) {
               <div><span>Open Trades</span><b>{openTrades}</b></div>
               <div><span>Open Lots</span><b>{openLots.toFixed(2)}</b></div>
               <div><span>Closed Lots</span><b>{fmtLots(closedLots)}</b></div>
+              <div><span>Total Rebate</span><b style={{ color:C.grn }}>{fmtM(totalRebate)}</b></div>
+              <div><span>Rebate Rate</span><b>{fmtM(rebateRate)} / lot</b></div>
               <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
             </div>
           </div>
@@ -2387,6 +2434,7 @@ function AccountDrilldown({ account, snapshots = [] }) {
                 <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
                 <em>{Number(row.daily_trades || 0)} closed deals</em>
                 <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
+                <em>{fmtM(numericField(row, ['daily_rebate', 'rebate', 'total_rebate']) ?? (Number(row.daily_lots || 0) * rebateRate))} rebate</em>
               </div>
             ))}
           </div>
@@ -2518,6 +2566,7 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                   ["Peak DD",   maxDrawdown.toFixed(2)+"%", maxDrawdown>5?"r":"y"],
                   ["Floating",  fmtS(floating),    floating>=0?"g":"r"],
                   [`${reportingDayLabel(latestHistoryRow(ea)?.date)} P&L`, fmtS(dailyProfit), dailyProfit>=0?"g":"r"],
+                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Rebate`, fmtM(accountTodayRebate(ea)), "g"],
                   ["Open Lots", openLots.toFixed(2), ""],
                 ].map(([l,v,c]) => {
                   const isHighlight = l.includes("P&L")
@@ -3153,13 +3202,14 @@ function HistoryPage({ accounts, isAdmin = false }) {
     pnl: acc.pnl + row.pnl,
     trades: acc.trades + row.trades,
     lots: acc.lots + row.lots,
+    rebate: acc.rebate + row.rebate,
     winDays: acc.winDays + (row.trades > 0 && row.pnl > 0 ? 1 : 0),
     lossDays: acc.lossDays + (row.trades > 0 && row.pnl < 0 ? 1 : 0),
-  }), { pnl: 0, trades: 0, lots: 0, winDays: 0, lossDays: 0 })
+  }), { pnl: 0, trades: 0, lots: 0, rebate: 0, winDays: 0, lossDays: 0 })
   const exportHistory = () => {
     downloadCsv('the-entity-closed-history.csv', [
-      ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots'],
-      ...filteredRows.map((row) => [row.date, row.name, row.account_number, row.broker, row.pnl > 0 ? 'profit' : row.pnl < 0 ? 'loss' : 'flat', row.pnl.toFixed(2), row.trades, row.lots.toFixed(2)]),
+      ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots', 'rebate_usd'],
+      ...filteredRows.map((row) => [row.date, row.name, row.account_number, row.broker, row.pnl > 0 ? 'profit' : row.pnl < 0 ? 'loss' : 'flat', row.pnl.toFixed(2), row.trades, row.lots.toFixed(2), row.rebate.toFixed(2)]),
     ])
   }
   return (
@@ -3167,6 +3217,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
       <div className="history-summary">
         <div className="stat"><div className="sl">Closed P&L</div><div className={`sv ${summary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(summary.pnl)}</div><div className="ss">selected period</div></div>
         <div className="stat"><div className="sl">Closed Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">reported volume</div></div>
+        <div className="stat"><div className="sl">Rebate</div><div className="sv g">{fmtM(summary.rebate)}</div><div className="ss">closed lots x rate</div></div>
         <div className="stat"><div className="sl">Closed Deals</div><div className="sv">{summary.trades}</div><div className="ss">daily history total</div></div>
         <div className="stat"><div className="sl">Profitable / Loss Account-Days</div><div className="sv">{summary.winDays} / {summary.lossDays}</div><div className="ss">account-days with deals</div></div>
       </div>
@@ -3239,11 +3290,12 @@ function HistoryPage({ accounts, isAdmin = false }) {
                 <TableHead>P&L</TableHead>
                 <TableHead>Closed Deals</TableHead>
                 <TableHead>Closed Lots</TableHead>
+                <TableHead>Rebate</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRows.length === 0 ? (
-                <TableRow><TableCell colSpan="7" className="empty-table-cell">No closed history for the selected filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan="8" className="empty-table-cell">No closed history for the selected filters.</TableCell></TableRow>
               ) : filteredRows.slice(0, 250).map((row) => (
                 <TableRow key={`${row.account_number}-${row.date}`}>
                   <TableCell data-label="Date" className="tm">{row.date}</TableCell>
@@ -3253,6 +3305,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
                   <TableCell data-label="P&L" className="tm"><Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{fmtS(row.pnl)}</Badge></TableCell>
                   <TableCell data-label="Closed Deals" className="tm">{row.trades}</TableCell>
                   <TableCell data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</TableCell>
+                  <TableCell data-label="Rebate" className="tm" style={{ color:C.grn }}>{fmtM(row.rebate)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

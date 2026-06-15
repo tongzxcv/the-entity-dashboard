@@ -76,6 +76,14 @@ const checks = [
     ok: overview.includes('{isAdmin && <AttentionRequired'),
   },
   {
+    name: 'Overview supports lot-based rebate reporting',
+    ok:
+      app.includes('const DEFAULT_REBATE_PER_LOT = 10') &&
+      app.includes('function accountRebateRate') &&
+      app.includes('function buildRebateSummary') &&
+      overview.includes('<RebateSummaryCard accounts={filteredAccounts} />'),
+  },
+  {
     name: 'Admin-only pages and sync remain gated',
     ok:
       all.includes('...(isAdmin ? [') &&
