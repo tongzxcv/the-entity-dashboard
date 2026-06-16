@@ -300,12 +300,34 @@ def parse_money_scale(value, account_currency: str) -> float:
     return default_money_scale(account_currency)
 
 
-def store_equity_snapshot(cursor, data, bucket_ts: str, open_positions: int):
+def resolve_account_money_settings(cursor, account_number, data) -> tuple[str, float]:
+    currency_value = data.get('account_currency', data.get('currency', data.get('accountCurrency')))
+    scale_value = data.get('money_scale', data.get('moneyScale'))
+    has_money_fields = currency_value is not None or scale_value is not None
+    if has_money_fields:
+        account_currency = normalize_account_currency(currency_value)
+        return account_currency, parse_money_scale(scale_value, account_currency)
+
+    try:
+        row = cursor.execute(
+            'SELECT account_currency, money_scale FROM accounts WHERE account_number = ?',
+            (str(account_number),)
+        ).fetchone()
+        if row:
+            account_currency = normalize_account_currency(row[0])
+            return account_currency, parse_money_scale(row[1], account_currency)
+    except sqlite3.Error:
+        pass
+
+    return "USD", 1.0
+
+
+def store_equity_snapshot(cursor, data, bucket_ts: str, open_positions: int, account_currency: str | None = None, money_scale: float | None = None):
     balance = float(data.get('balance', 0) or 0)
     equity = float(data.get('equity', 0) or 0)
     drawdown_percent = float(data.get('drawdown_percent', 0) or 0)
-    account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
-    money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
+    if account_currency is None or money_scale is None:
+        account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
     cursor.execute(
         '''INSERT INTO equity_snapshots (account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions, account_currency, money_scale, last_update)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -452,8 +474,7 @@ async def update_mt5_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
-        account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
-        money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
+        account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
         cursor.execute(
             '''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -481,7 +502,7 @@ async def update_mt5_data(request: Request):
              data.get('total_closed_trades'), data.get('total_closed_lots'), rebate_total, rebate_rate,
              incoming_peak_amount, incoming_peak_percent, account_currency, money_scale)
         )
-        store_equity_snapshot(cursor, data, bucket_ts, int(data.get('open_positions', 0) or 0))
+        store_equity_snapshot(cursor, data, bucket_ts, int(data.get('open_positions', 0) or 0), account_currency, money_scale)
         # บันทึก open_trades ถ้ามีส่งมา
         cursor.execute('DELETE FROM open_trades WHERE account_number = ?', (data['account_number'],))
         for trade in data.get('open_trades', []):
@@ -531,8 +552,7 @@ async def update_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
-        account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
-        money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
+        account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
         cursor.execute('''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                           ON CONFLICT(account_number) DO UPDATE SET
@@ -553,7 +573,7 @@ async def update_data(request: Request):
                               account_currency = excluded.account_currency,
                               money_scale = excluded.money_scale,
                               last_update = CURRENT_TIMESTAMP''', (data['account_number'], data['broker'], data['balance'], data['equity'], data['margin'], data['free_margin'], data['drawdown_percent'], len(data.get('open_trades', [])), data.get('total_closed_pnl'), data.get('total_closed_trades'), data.get('total_closed_lots'), rebate_total, rebate_rate, incoming_peak_amount, incoming_peak_percent, account_currency, money_scale))
-        store_equity_snapshot(cursor, data, bucket_ts, len(data.get('open_trades', [])))
+        store_equity_snapshot(cursor, data, bucket_ts, len(data.get('open_trades', [])), account_currency, money_scale)
         cursor.execute('DELETE FROM open_trades WHERE account_number = ?', (data['account_number'],))
         for trade in data.get('open_trades', []): cursor.execute('''INSERT OR REPLACE INTO open_trades (account_number, ticket, symbol, trade_type, lots, open_price, current_price, profit, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], str(trade['ticket']), trade['symbol'], trade['trade_type'], float(trade['lots']), trade['open_price'], trade['current_price'], trade['profit']))
         if not is_weekend: cursor.execute('''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, account_currency, money_scale, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], target_date, data.get('daily_profit', 0), data.get('daily_trades', 0), data.get('daily_lots', data.get('today_lots', 0)), data.get('daily_rebate', data.get('today_rebate', float(data.get('daily_lots', data.get('today_lots', 0)) or 0) * rebate_rate)), account_currency, money_scale))

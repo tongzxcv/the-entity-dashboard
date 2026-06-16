@@ -15,6 +15,8 @@ const checks = [
   ['backend stores money scale', files.backend.includes('ADD COLUMN money_scale')],
   ['backend normalizes currency', files.backend.includes('def normalize_account_currency')],
   ['backend parses money scale', files.backend.includes('def parse_money_scale')],
+  ['backend preserves existing account scale', files.backend.includes('def resolve_account_money_settings')],
+  ['backend only defaults when payload and account scale are missing', files.backend.includes('SELECT account_currency, money_scale FROM accounts')],
   ['frontend normalizes dashboard payload', files.app.includes('function normalizeDashboardPayload')],
   ['frontend applies normalized payload on fetch', files.app.includes('setData(normalizeDashboardPayload(result))')],
   ['frontend documents rebate no-scale rule', files.app.includes('Rebate is paid in USD per lot; do not money-scale')],
