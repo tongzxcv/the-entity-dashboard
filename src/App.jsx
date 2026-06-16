@@ -56,12 +56,26 @@ const Ico = {
 }
 
 // โ”€โ”€ HELPERS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
-const fmtM = (v, signed = false) => {
-  const num = Number(v || 0)
-  const sign = signed && num > 0 ? "+" : signed && num < 0 ? "-" : ""
-  return `${sign}$${Math.abs(num).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const moneyDisplayContext = (signedOrContext, context) => {
+  if (typeof signedOrContext === 'boolean') return { signed: signedOrContext, context }
+  return { signed: false, context: signedOrContext || context }
 }
-const fmtS = (v) => (Number(v || 0) >= 0 ? "+" : "-") + "$" + Math.abs(Number(v || 0)).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const moneySymbol = (context) => accountCurrency(context) === 'USC' ? '¢' : '$'
+const displayMoneyAmount = (value, context) => {
+  const amount = Number(value || 0)
+  if (!context || accountCurrency(context) !== 'USC') return amount
+  return context.money_normalized ? amount * accountMoneyScale(context) : amount
+}
+const fmtM = (v, signedOrContext = false, context = null) => {
+  const { signed, context: moneyContext } = moneyDisplayContext(signedOrContext, context)
+  const num = displayMoneyAmount(v, moneyContext)
+  const sign = signed && num > 0 ? "+" : signed && num < 0 ? "-" : ""
+  return `${sign}${moneySymbol(moneyContext)}${Math.abs(num).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+const fmtS = (v, context = null) => {
+  const num = displayMoneyAmount(v, context)
+  return (num >= 0 ? "+" : "-") + moneySymbol(context) + Math.abs(num).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 const pclr = (v) => Number(v || 0) >= 0 ? C.grn : C.red
 const hmClr = (v) => {
   if (v === null || v === undefined) return "rgba(255,255,255,0.04)"
@@ -169,6 +183,18 @@ function accountMoneyValue(value, account) {
   const amount = Number(value || 0)
   if (account?.money_normalized) return amount
   return amount / accountMoneyScale(account)
+}
+
+function moneyContextForItems(items) {
+  const list = (items || []).filter(Boolean)
+  const currencies = Array.from(new Set(list.map((item) => accountCurrency(item)).filter(Boolean)))
+  if (currencies.length !== 1) return null
+  const sample = list.find((item) => accountCurrency(item) === currencies[0]) || { account_currency: currencies[0] }
+  return {
+    account_currency: currencies[0],
+    money_scale: accountMoneyScale(sample),
+    money_normalized: sample.money_normalized,
+  }
 }
 
 function normalizeDashboardPayload(payload) {
@@ -324,6 +350,9 @@ function collectHistory(accounts) {
     (account.daily_history || []).map((row) => ({
       ...row,
       account_number: account.account_number,
+      account_currency: account.account_currency,
+      money_scale: account.money_scale,
+      money_normalized: account.money_normalized,
       name: accountLabel(account),
       broker: account.broker,
       balance: Number(account.balance || 0),
@@ -573,13 +602,14 @@ function buildMonthlyRows(accounts, periodRange = null) {
   collectPeriodHistory(accounts, periodRange).forEach((row) => {
     const month = String(row.date || '').slice(0, 7)
     if (!month) return
-    const item = byMonth.get(month) || { month, pnl: 0, trades: 0, lots: 0, winDays: 0, lossDays: 0, bestDay: null, worstDay: null, accounts: new Map() }
+    const item = byMonth.get(month) || { month, pnl: 0, trades: 0, lots: 0, winDays: 0, lossDays: 0, bestDay: null, worstDay: null, accounts: new Map(), moneyContexts: [] }
     const pnl = Number(row.daily_profit || 0)
     const trades = Number(row.daily_trades || 0)
     const lots = Number(row.daily_lots || 0)
     item.pnl += pnl
     item.trades += trades
     item.lots += lots
+    item.moneyContexts.push(row)
     if (trades > 0 && pnl > 0) item.winDays += 1
     if (trades > 0 && pnl < 0) item.lossDays += 1
     item.bestDay = item.bestDay === null ? pnl : Math.max(item.bestDay, pnl)
@@ -588,6 +618,9 @@ function buildMonthlyRows(accounts, periodRange = null) {
       account_number: row.account_number,
       name: row.name,
       broker: row.broker,
+      account_currency: row.account_currency,
+      money_scale: row.money_scale,
+      money_normalized: row.money_normalized,
       pnl: 0,
       trades: 0,
       lots: 0,
@@ -600,6 +633,7 @@ function buildMonthlyRows(accounts, periodRange = null) {
   })
   return Array.from(byMonth.values()).map((row) => ({
     ...row,
+    money_context: moneyContextForItems(row.moneyContexts),
     accounts: Array.from(row.accounts.values()).sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl)),
   })).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12)
 }
@@ -642,17 +676,20 @@ function buildSymbolExposure(accounts) {
   accounts.forEach((account) => {
     ;(account.open_trades || account.trades || []).forEach((trade) => {
       const symbol = trade.symbol || 'Unknown'
-      const item = map.get(symbol) || { symbol, category: symbolCategory(symbol), lots: 0, profit: 0, trades: 0, buy: 0, sell: 0, accounts: new Set() }
+      const item = map.get(symbol) || { symbol, category: symbolCategory(symbol), lots: 0, profit: 0, trades: 0, buy: 0, sell: 0, accounts: new Set(), moneyContexts: [] }
       item.lots += Number(trade.lots || 0)
       item.profit += Number(trade.profit || 0)
       item.trades += 1
       item.accounts.add(account.account_number)
+      item.moneyContexts.push(account)
       if (String(trade.trade_type || '').toUpperCase() === 'BUY') item.buy += 1
       if (String(trade.trade_type || '').toUpperCase() === 'SELL') item.sell += 1
       map.set(symbol, item)
     })
   })
-  return Array.from(map.values()).map((row) => ({ ...row, accounts: row.accounts.size })).sort((a, b) => Math.abs(b.lots) - Math.abs(a.lots))
+  return Array.from(map.values())
+    .map((row) => ({ ...row, accounts: row.accounts.size, money_context: moneyContextForItems(row.moneyContexts) }))
+    .sort((a, b) => Math.abs(b.lots) - Math.abs(a.lots))
 }
 
 function buildAccountPeriodStats(account) {
@@ -858,8 +895,8 @@ function buildAlerts(accounts, snapshots = [], sysData = null) {
     }
     if (currentDd >= 10) alerts.push({ level: 'critical', title: `${label} current drawdown high`, detail: `Current DD is ${formatPercent(currentDd)}. Peak DD is ${formatPercent(peakDd)}. Review risk before adding exposure.`, scope: 'Risk' })
     else if (currentDd >= 5) alerts.push({ level: 'warning', title: `${label} current drawdown watch`, detail: `Current DD is ${formatPercent(currentDd)}. Peak DD is ${formatPercent(peakDd)}.`, scope: 'Risk' })
-    if (floatingPct <= -10) alerts.push({ level: 'critical', title: `${label} floating loss pressure`, detail: `${fmtS(floating)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
-    else if (floatingPct <= -5) alerts.push({ level: 'warning', title: `${label} floating loss watch`, detail: `${fmtS(floating)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
+    if (floatingPct <= -10) alerts.push({ level: 'critical', title: `${label} floating loss pressure`, detail: `${fmtS(floating, account)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
+    else if (floatingPct <= -5) alerts.push({ level: 'warning', title: `${label} floating loss watch`, detail: `${fmtS(floating, account)} floating (${floatingPct.toFixed(2)}% of balance).`, scope: 'Floating' })
   })
   if (weekend.totalTrades > 0 && (weekend.isFridayWindow || weekend.isWeekend)) {
     alerts.push({ level: 'critical', title: 'Weekend exposure open', detail: `${weekend.totalTrades} trades / ${weekend.totalLots.toFixed(2)} lots still open.`, scope: 'Weekend' })
@@ -1409,6 +1446,7 @@ function AccountFilterControls({
 
 function WeekendExposureCard({ accounts, compact = false }) {
   const exposure = buildWeekendExposure(accounts)
+  const exposureMoneyContext = moneyContextForItems(exposure.rows.map((row) => row.account))
   const tone = exposure.level === 'danger' ? C.red : exposure.level === 'watch' ? C.yel : C.grn
   const worstRow = exposure.rows[0]
   return (
@@ -1424,7 +1462,7 @@ function WeekendExposureCard({ accounts, compact = false }) {
       <div className="weekend-metrics">
         <div><span>Open Trades</span><b>{exposure.totalTrades}</b></div>
         <div><span>Open Lots</span><b>{exposure.totalLots.toFixed(2)}</b></div>
-        <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating)}</b></div>
+        <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating, exposureMoneyContext)}</b></div>
       </div>
       <div className="weekend-note" style={{ color:tone }}>
         {exposure.totalTrades === 0
@@ -1450,7 +1488,7 @@ function WeekendExposureCard({ accounts, compact = false }) {
               </div>
               <div className="tm">{row.trades} trades</div>
               <div className="tm">{row.lots.toFixed(2)} lots</div>
-              <div className="tm" style={{ color:pclr(row.floating) }}>{fmtS(row.floating)}</div>
+              <div className="tm" style={{ color:pclr(row.floating) }}>{fmtS(row.floating, row.account)}</div>
             </div>
           ))}
         </div>
@@ -1484,6 +1522,7 @@ function RebateSummaryCard({ accounts }) {
 
 function RiskDeskPage({ accounts, snapshots }) {
   const exposure = buildWeekendExposure(accounts)
+  const exposureMoneyContext = moneyContextForItems(exposure.rows.map((row) => row.account))
   const riskRows = buildRiskRows(accounts, snapshots)
   const clearCount = riskRows.filter((row) => row.level === 'clear').length
   const watchCount = riskRows.filter((row) => row.level === 'warning').length
@@ -1518,7 +1557,7 @@ function RiskDeskPage({ accounts, snapshots }) {
         <div className="risk-hero-grid">
           <div><span>Open Trades</span><b>{exposure.totalTrades}</b></div>
           <div><span>Open Lots</span><b>{exposure.totalLots.toFixed(2)}</b></div>
-          <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating)}</b></div>
+          <div><span>Floating</span><b style={{ color:pclr(exposure.totalFloating) }}>{fmtS(exposure.totalFloating, exposureMoneyContext)}</b></div>
         </div>
       </div>
       <div className="alert-summary">
@@ -1548,7 +1587,7 @@ function RiskDeskPage({ accounts, snapshots }) {
                   <td className="tm" style={{ color:row.currentDd >= 10 ? C.red : row.currentDd >= 5 ? C.yel : C.t2 }}>{formatPercent(row.currentDd)}</td>
                   <td className="tm">{row.openTrades}</td>
                   <td className="tm">{row.openLots.toFixed(2)}</td>
-                  <td className="tm" style={{ color:pclr(row.floating), fontWeight:600 }}>{fmtS(row.floating)}</td>
+                  <td className="tm" style={{ color:pclr(row.floating), fontWeight:600 }}>{fmtS(row.floating, row.account)}</td>
                   <td><span className={`badge ${row.age.seconds < 330 ? 'blive' : row.age.seconds < 1800 ? 'bbuy' : 'bsell'}`}>{row.age.label}</span></td>
                   <td className="tm" style={{ color:C.t2 }}>
                     {row.openTrades > 0 ? 'Review before close' : row.level === 'clear' ? 'No action' : 'Check reporter / DD'}
@@ -1587,7 +1626,7 @@ function ResponsiveSymbolRows({ symbols }) {
           <CardContent className="responsive-row-body p-0">
             <div><span>Lots</span><b className="symbol-number">{symbol.lots.toFixed(2)}</b></div>
             <div><span>Buy / Sell</span><b className="symbol-number">{symbol.buy} / {symbol.sell}</b></div>
-            <div><span>Floating</span><b className="symbol-money" style={{ color:pclr(symbol.profit) }}>{fmtS(symbol.profit)}</b></div>
+            <div><span>Floating</span><b className="symbol-money" style={{ color:pclr(symbol.profit) }}>{fmtS(symbol.profit, symbol.money_context)}</b></div>
             <div><span>Category</span><b>{symbol.category}</b></div>
           </CardContent>
         </Card>
@@ -1628,7 +1667,7 @@ function ResponsiveTradeRows({ trades, isAdmin }) {
               <div><span>{isAdmin ? 'Ticket' : 'Trade'}</span><b>{tradeLabel}</b></div>
               <div><span>Lots</span><b>{Number(trade.lots || 0).toFixed(2)}</b></div>
               {isAdmin && <div><span>Open Price</span><b>{Number(trade.open_price || 0).toFixed(5)}</b></div>}
-              <div><span>P&L</span><b style={{ color:pclr(pnl) }}>{fmtS(pnl)}</b></div>
+              <div><span>P&L</span><b style={{ color:pclr(pnl) }}>{fmtS(pnl, trade.account)}</b></div>
             </CardContent>
           </Card>
         )
@@ -1654,7 +1693,7 @@ function ResponsiveHistoryRows({ rows }) {
           </CardHeader>
           <CardContent className="responsive-row-body p-0">
             <div><span>Account</span><b>{maskAccountNumber(row.account_number)}</b></div>
-            <div><span>P&L</span><b style={{ color:pclr(row.pnl) }}>{fmtS(row.pnl)}</b></div>
+            <div><span>P&L</span><b style={{ color:pclr(row.pnl) }}>{fmtS(row.pnl, row)}</b></div>
             <div><span>Closed Deals</span><b>{row.trades}</b></div>
             <div><span>Closed Lots</span><b>{row.lots.toFixed(2)}</b></div>
             <div><span>Rebate</span><b style={{ color:C.grn }}>{fmtM(row.rebate)}</b></div>
@@ -1699,6 +1738,8 @@ function DataFreshnessStat({ accounts, lastUpdate }) {
 function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNavigate, isAdmin = false }) {
   const riskRows = buildRiskRows(accounts, snapshots)
   const weekend = buildWeekendExposure(accounts)
+  const portfolioMoneyContext = moneyContextForItems(accounts)
+  const weekendMoneyContext = moneyContextForItems(weekend.rows.map((row) => row.account))
   const criticalRows = riskRows.filter((row) => row.level === 'critical')
   const watchRows = riskRows.filter((row) => row.level === 'warning')
   const newestAge = accounts.reduce((min, account) => Math.min(min, getAge(account).seconds), Infinity)
@@ -1726,7 +1767,7 @@ function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNav
     },
     {
       label: `${reportingDayLabel(summary.reportingDate)} Result`,
-      value: fmtS(summary.todayPnl),
+      value: fmtS(summary.todayPnl, portfolioMoneyContext),
       tone: summary.todayPnl >= 0 ? 'good' : 'danger',
       detail: `${summary.todayTrades} closed deals / ${summary.reportingDate || 'waiting for reporter'}`,
       action: 'Open history',
@@ -1736,7 +1777,7 @@ function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNav
       label: 'Floating Risk',
       value: formatPercent(floatingRisk),
       tone: floatingRisk <= -5 ? 'danger' : floatingRisk <= -2 ? 'warn' : 'good',
-      detail: `${fmtS(summary.floating)} open P&L across ${summary.openTrades} open trades.`,
+      detail: `${fmtS(summary.floating, portfolioMoneyContext)} open P&L across ${summary.openTrades} open trades.`,
       action: 'Open trades',
       onClick: () => onNavigate?.('trades'),
     },
@@ -1744,7 +1785,7 @@ function OperationalBrief({ accounts, summary, snapshots = [], lastUpdate, onNav
       label: 'Weekend Exposure',
       value: hasWeekendExposure ? `${weekend.totalTrades} trades` : 'Clear',
       tone: hasWeekendExposure ? (weekend.level === 'danger' ? 'danger' : 'warn') : 'good',
-      detail: hasWeekendExposure ? `${weekend.totalLots.toFixed(2)} lots / ${fmtS(weekend.totalFloating)} floating.` : 'No open weekend exposure right now.',
+      detail: hasWeekendExposure ? `${weekend.totalLots.toFixed(2)} lots / ${fmtS(weekend.totalFloating, weekendMoneyContext)} floating.` : 'No open weekend exposure right now.',
       action: 'Check preview',
       onClick: () => onNavigate?.('mt5preview'),
     },
@@ -1802,7 +1843,7 @@ function AttentionRequired({ accounts, snapshots = [] }) {
               <strong>{accountLabel(row.account)}</strong>
               <span>{row.age.label} / Current DD {formatPercent(row.currentDd)}</span>
             </div>
-            <div><span>Floating</span><b style={{ color:pclr(row.floating) }}>{fmtS(row.floating)}</b></div>
+            <div><span>Floating</span><b style={{ color:pclr(row.floating) }}>{fmtS(row.floating, row.account)}</b></div>
             <div><span>Open</span><b>{row.openTrades} / {row.openLots.toFixed(2)} lots</b></div>
           </div>
         ))}
@@ -1880,7 +1921,7 @@ function ActivityTimeline({ accounts, snapshots = [], isAdmin }) {
         level: row.pnl >= 0 ? 'success' : 'danger',
         time: row.date ? new Date(row.date + 'T12:00:00') : null,
         title: `${label} Closed Daily Deals`,
-        detail: `Closed ${row.trades} deals (${fmtLots(row.lots)} lots) for ${fmtS(row.pnl)} profit.`,
+        detail: `Closed ${row.trades} deals (${fmtLots(row.lots)} lots) for ${fmtS(row.pnl, row)} profit.`,
         dateStr: row.date
       })
     }
@@ -1937,6 +1978,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
   const chartWrapRef = useRef(null)
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState(null)
+  const [calendarMonth, setCalendarMonth] = useState(null)
   const [expandedMonth, setExpandedMonth] = useState(null)
 
   // Format equity series for the lazy-loaded chart module
@@ -1983,38 +2025,69 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
     byDate.set(row.date, item)
   })
 
-  const dates = []
-  const start = new Date()
-  start.setDate(start.getDate() - 364)
-  for (let index = 0; index < 365; index += 1) {
-    const date = new Date(start)
-    date.setDate(start.getDate() + index)
-    dates.push(dateKey(date))
-  }
-
-  // Arrange heatmap into 7 rows (days) x 53 cols (weeks)
-  const hmData = Array.from({ length: 7 }, () => Array(53).fill(null))
-  dates.forEach((dateStr, idx) => {
-    const dateObj = new Date(dateStr)
-    const dayOfWeek = dateObj.getDay() // 0 = Sunday
-    const weekIdx = Math.floor(idx / 7)
-    if (weekIdx < 53) {
-      hmData[dayOfWeek][weekIdx] = byDate.get(dateStr) || { date: dateStr, pnl: null, trades: 0, lots: 0, rows: [] }
-    }
-  })
-
   const tradeDays = Array.from(byDate.values()).filter((day) => day.trades > 0)
   const totalPnl = tradeDays.reduce((sum, day) => sum + day.pnl, 0)
   const best = tradeDays.length ? Math.max(...tradeDays.map((day) => day.pnl)) : 0
   const worst = tradeDays.length ? Math.min(...tradeDays.map((day) => day.pnl)) : 0
   const selectedHeatmapDay = selectedHeatmapDate ? byDate.get(selectedHeatmapDate) : null
+  const portfolioMoneyContext = moneyContextForItems(filteredAccounts)
+  const historyMoneyContext = moneyContextForItems(history)
+  const newestHistoryDate = tradeDays.map((day) => day.date).sort().at(-1) || dateKey(new Date())
+  const activeCalendarMonth = calendarMonth || newestHistoryDate.slice(0, 7)
+  const [calendarYear, calendarMonthIndex] = activeCalendarMonth.split('-').map(Number)
+  const calendarStart = new Date(calendarYear, calendarMonthIndex - 1, 1)
+  const daysInMonth = new Date(calendarYear, calendarMonthIndex, 0).getDate()
+  const leadingEmptyDays = calendarStart.getDay()
+  const calendarCells = [
+    ...Array.from({ length: leadingEmptyDays }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, dayIndex) => {
+      const date = `${activeCalendarMonth}-${String(dayIndex + 1).padStart(2, '0')}`
+      return byDate.get(date) || { date, pnl: null, trades: 0, lots: 0, rows: [] }
+    }),
+  ]
+  while (calendarCells.length % 7 !== 0) calendarCells.push(null)
+  const calendarWeeks = Array.from({ length: calendarCells.length / 7 }, (_, weekIndex) =>
+    calendarCells.slice(weekIndex * 7, weekIndex * 7 + 7),
+  )
+  const calendarMonthDays = calendarCells.filter(Boolean)
+  const calendarMoneyContext = moneyContextForItems(calendarMonthDays.flatMap((day) => day.rows))
+  const calendarMonthPnl = calendarMonthDays.reduce((sum, day) => sum + Number(day.pnl || 0), 0)
+  const maxCalendarAbs = Math.max(1, ...calendarMonthDays.map((day) => Math.abs(Number(day.pnl || 0))))
+  const calendarCellStyle = (day) => {
+    if (!day || day.pnl === null || day.trades <= 0) return {}
+    const intensity = Math.min(0.34, 0.10 + (Math.abs(Number(day.pnl || 0)) / maxCalendarAbs) * 0.24)
+    return {
+      background: Number(day.pnl || 0) >= 0 ? `rgba(61,214,140,${intensity})` : `rgba(240,96,122,${intensity})`,
+    }
+  }
+  const calendarWeekSummaries = calendarWeeks.map((week, index) => {
+    const days = week.filter(Boolean)
+    const rows = days.flatMap((day) => day.rows)
+    return {
+      week: index + 1,
+      pnl: days.reduce((sum, day) => sum + Number(day.pnl || 0), 0),
+      trades: days.reduce((sum, day) => sum + Number(day.trades || 0), 0),
+      context: moneyContextForItems(rows),
+    }
+  })
+  const shiftCalendarMonth = (amount) => {
+    const next = new Date(calendarYear, calendarMonthIndex - 1 + amount, 1)
+    setCalendarMonth(dateKey(next).slice(0, 7))
+    setSelectedHeatmapDate(null)
+  }
+  const resetCalendarMonth = () => {
+    setCalendarMonth(null)
+    setSelectedHeatmapDate(null)
+  }
 
   // Split accounts logic
   const usdGroup = filteredAccounts.filter((a) => accountCurrency(a) === 'USD')
+  const usdContext = moneyContextForItems(usdGroup)
   const usdBalance = usdGroup.reduce((sum, a) => sum + Number(a.balance || 0), 0)
   const usdEquity = usdGroup.reduce((sum, a) => sum + Number(a.equity || 0), 0)
 
   const uscGroup = filteredAccounts.filter((a) => accountCurrency(a) === 'USC')
+  const uscContext = moneyContextForItems(uscGroup)
   const uscBalance = uscGroup.reduce((sum, a) => sum + Number(a.balance || 0), 0)
   const uscEquity = uscGroup.reduce((sum, a) => sum + Number(a.equity || 0), 0)
 
@@ -2041,17 +2114,17 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         <div className="kpi-hero-wrap">
           <MetricCard
             label="Total Balance"
-            value={fmtM(stats.totalBalance)}
+            value={fmtM(stats.totalBalance, false, portfolioMoneyContext)}
             bar={C.acc}
-            meta={`Equity ${fmtM(stats.totalEquity)} | Float ${fmtS(stats.floating)}`}
+            meta={`Equity ${fmtM(stats.totalEquity, false, portfolioMoneyContext)} | Float ${fmtS(stats.floating, portfolioMoneyContext)}`}
           />
         </div>
         <div className="kpi-strip-wrap">
           {[
-            { lbl:"Floating P&L",  val:fmtS(stats.floating),     cls:stats.floating >= 0 ? "g" : "r", bar:stats.floating >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.floating, stats.totalBalance))} open risk` },
-            { lbl:"Monthly P&L",   val:fmtS(stats.monthPnl),     cls:stats.monthPnl >= 0 ? "g" : "r", bar:stats.monthPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.monthPnl, stats.totalBalance))} this month` },
-            { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
-            { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
+            { lbl:"Floating P&L",  val:fmtS(stats.floating, portfolioMoneyContext),     cls:stats.floating >= 0 ? "g" : "r", bar:stats.floating >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.floating, stats.totalBalance))} open risk` },
+            { lbl:"Monthly P&L",   val:fmtS(stats.monthPnl, portfolioMoneyContext),     cls:stats.monthPnl >= 0 ? "g" : "r", bar:stats.monthPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.monthPnl, stats.totalBalance))} this month` },
+            { lbl:"Weekly P&L",    val:fmtS(stats.weekPnl, portfolioMoneyContext),      cls:stats.weekPnl >= 0 ? "g" : "r", bar:stats.weekPnl >= 0 ? C.grn : C.red, meta:`${formatPercent(pctOfBalance(stats.weekPnl, stats.totalBalance))} this week` },
+            { lbl:`${latestDayLabel} P&L`, val:fmtS(stats.dayPnl, portfolioMoneyContext), cls:stats.dayPnl >= 0 ? "g" : "r", bar:stats.dayPnl >= 0 ? C.grn : C.red, meta:latestDayMeta },
           ].map(k => (
             <MetricCard key={k.lbl} label={k.lbl} value={k.val} tone={k.cls} bar={k.bar} meta={k.meta} compact={true} />
           ))}
@@ -2065,7 +2138,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         </div>
         <div>
           <span>Period P&L</span>
-          <b style={{ color:periodWaiting ? C.t3 : pclr(stats.selectedPnl) }}>{periodWaiting ? 'Waiting for date range' : fmtS(stats.selectedPnl)}</b>
+          <b style={{ color:periodWaiting ? C.t3 : pclr(stats.selectedPnl) }}>{periodWaiting ? 'Waiting for date range' : fmtS(stats.selectedPnl, portfolioMoneyContext)}</b>
         </div>
         <div>
           <span>Closed Deals / Lots</span>
@@ -2077,7 +2150,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         </div>
         <div>
           <span>Best / Worst</span>
-          <b>{periodWaiting ? '-- / --' : <><em style={{ color:C.grn }}>{fmtS(stats.selectedBest)}</em> <em style={{ color:C.red }}>{fmtS(stats.selectedWorst)}</em></>}</b>
+          <b>{periodWaiting ? '-- / --' : <><em style={{ color:C.grn }}>{fmtS(stats.selectedBest, portfolioMoneyContext)}</em> <em style={{ color:C.red }}>{fmtS(stats.selectedWorst, portfolioMoneyContext)}</em></>}</b>
         </div>
       </div>
 
@@ -2105,7 +2178,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             <span className="chip ca">{usdGroup.length} ports</span>
           </div>
           <div className="ag">
-            {[["Balance",fmtM(usdBalance)],["Equity",fmtM(usdEquity)],["Floating",fmtS(usdEquity - usdBalance)]].map(([l,v]) => (
+            {[["Balance",fmtM(usdBalance, false, usdContext)],["Equity",fmtM(usdEquity, false, usdContext)],["Floating",fmtS(usdEquity - usdBalance, usdContext)]].map(([l,v]) => (
               <div key={l}><div className="asl">{l}</div><div className="asv" style={l==="Floating"?{color:pclr(usdEquity - usdBalance)}:{}}>{v}</div></div>
             ))}
           </div>
@@ -2117,7 +2190,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               <span className="chip cd">{uscGroup.length} ports</span>
             </div>
             <div className="ag">
-              {[["Balance",`${uscBalance.toLocaleString()}c`],["Equity",`${uscEquity.toLocaleString()}c`],["Floating",`${(uscEquity - uscBalance).toLocaleString()}c`]].map(([l,v]) => (
+              {[["Balance",fmtM(uscBalance, false, uscContext)],["Equity",fmtM(uscEquity, false, uscContext)],["Floating",fmtS(uscEquity - uscBalance, uscContext)]].map(([l,v]) => (
                 <div key={l}><div className="asl">{l}</div><div className="asv" style={l==="Floating"?{color:pclr(uscEquity - uscBalance)}:{}}>{v}</div></div>
               ))}
             </div>
@@ -2131,7 +2204,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             <div className="sec-h">
               <div>
                 <div className="sec-lbl">Equity Curve</div>
-                <div className="sec-title">{mappedEquity.length > 0 ? fmtM(mappedEquity[mappedEquity.length - 1].v) : "$0.00"}</div>
+                <div className="sec-title">{mappedEquity.length > 0 ? fmtM(mappedEquity[mappedEquity.length - 1].v, false, portfolioMoneyContext) : "$0.00"}</div>
               </div>
               <div className="tbts">
                 {["1H","6H","24H","7D","30D","ALL"].map(t => (
@@ -2240,54 +2313,89 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         <div className="sec-h">
           <div>
             <div className="sec-lbl">Daily P&L Heatmap</div>
-            <div className="sec-title">52-week trading calendar</div>
+            <div className="sec-title">Monthly trading calendar</div>
           </div>
-          <span className="chip cd">{tradeDays.length} trading days</span>
+          <div className="calendar-title">
+            <b>{calendarStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</b>
+            <span>Monthly P/L <em style={{ color:pclr(calendarMonthPnl) }}>{fmtS(calendarMonthPnl, calendarMoneyContext)}</em></span>
+          </div>
         </div>
-        <div className="hmw">
-          {hmData.map((row, d) => (
-            <div className="hmrow" key={d}>
-              {row.map((cell, w) => {
-                const value = cell?.pnl
-                const label = cell?.date || ''
+        <div className="calendar-toolbar">
+          <button type="button" onClick={() => shiftCalendarMonth(-1)} aria-label="Previous month">&lt;</button>
+          <button type="button" onClick={resetCalendarMonth}>Today</button>
+          <button type="button" onClick={() => shiftCalendarMonth(1)} aria-label="Next month">&gt;</button>
+        </div>
+        <div className="monthly-calendar" role="grid" aria-label="Monthly daily profit and loss calendar">
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Summary'].map((label) => (
+            <div className="calendar-head-cell" key={label}>{label}</div>
+          ))}
+          {calendarWeeks.map((week, weekIndex) => (
+            <React.Fragment key={`week-${weekIndex}`}>
+              {week.map((day, dayIndex) => {
+                const dayContext = day ? moneyContextForItems(day.rows) : null
+                const dayNumber = day ? Number(day.date.slice(-2)) : ''
                 return (
                   <button
-                    key={w}
+                    key={`${weekIndex}-${dayIndex}`}
                     type="button"
-                    className={`hmc${selectedHeatmapDate === cell?.date ? ' on' : ''}`}
-                    style={{ background:hmClr(value) }}
-                    title={value != null ? `${label} ${fmtS(value)} / ${cell.trades} closed deals` : `${label} No closed deals`}
-                    onClick={() => label && setSelectedHeatmapDate(label)}
-                  />
+                    className={cn(
+                      'calendar-day',
+                      !day && 'empty',
+                      day?.trades > 0 && Number(day.pnl || 0) >= 0 && 'positive',
+                      day?.trades > 0 && Number(day.pnl || 0) < 0 && 'negative',
+                      selectedHeatmapDate === day?.date && 'selected',
+                    )}
+                    style={calendarCellStyle(day)}
+                    disabled={!day}
+                    title={day?.trades > 0 ? `${day.date} ${fmtS(day.pnl, dayContext)} / ${day.trades} closed deals` : `${day?.date || ''} No closed deals`}
+                    onClick={() => day && setSelectedHeatmapDate(day.date)}
+                  >
+                    {day ? (
+                      <>
+                        <span className="calendar-date">{dayNumber}</span>
+                        {day.trades > 0 ? (
+                          <span className="calendar-day-body">
+                            <strong style={{ color:pclr(day.pnl) }}>{fmtS(day.pnl, dayContext)}</strong>
+                            <em data-short={day.trades}>{day.trades} deals</em>
+                          </span>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </button>
                 )
               })}
-            </div>
+              <div className="calendar-week-summary">
+                <span>Week {calendarWeekSummaries[weekIndex].week}</span>
+                <b style={{ color:pclr(calendarWeekSummaries[weekIndex].pnl) }}>{fmtS(calendarWeekSummaries[weekIndex].pnl, calendarWeekSummaries[weekIndex].context)}</b>
+                <em>{calendarWeekSummaries[weekIndex].trades} deals</em>
+              </div>
+            </React.Fragment>
           ))}
         </div>
         {selectedHeatmapDay ? (
           <div className="heatmap-detail">
             <div>
               <span>{selectedHeatmapDay.date}</span>
-              <b style={{ color:pclr(selectedHeatmapDay.pnl) }}>{fmtS(selectedHeatmapDay.pnl)}</b>
+              <b style={{ color:pclr(selectedHeatmapDay.pnl) }}>{fmtS(selectedHeatmapDay.pnl, moneyContextForItems(selectedHeatmapDay.rows))}</b>
               <em>{selectedHeatmapDay.trades} closed deals / {selectedHeatmapDay.lots.toFixed(2)} lots</em>
             </div>
             <div className="heatmap-detail-list">
               {selectedHeatmapDay.rows.slice(0, 5).map((row) => (
                 <div key={`${row.account_number}-${row.date}`}>
                   <span>{row.name}</span>
-                  <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
+                  <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit, row)}</b>
                   <em>{Number(row.daily_trades || 0)} closed deals</em>
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <div className="heatmap-detail muted">Select any trading day to inspect account-level P&L.</div>
+          <div className="heatmap-detail muted">Select any calendar day to inspect account-level P&L.</div>
         )}
         <div className="hmst">
-          <div><div className="sl" style={{marginBottom:3}}>Total P&L</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color: totalPnl >= 0 ? C.grn : C.red}}>{fmtS(totalPnl)}</div></div>
-          <div><div className="sl" style={{marginBottom:3}}>Best Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.grn}}>{fmtS(best)}</div></div>
-          <div><div className="sl" style={{marginBottom:3}}>Worst Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.red}}>{fmtS(worst)}</div></div>
+          <div><div className="sl" style={{marginBottom:3}}>All-Time P&L</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color: totalPnl >= 0 ? C.grn : C.red}}>{fmtS(totalPnl, historyMoneyContext)}</div></div>
+          <div><div className="sl" style={{marginBottom:3}}>Best Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.grn}}>{fmtS(best, historyMoneyContext)}</div></div>
+          <div><div className="sl" style={{marginBottom:3}}>Worst Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.red}}>{fmtS(worst, historyMoneyContext)}</div></div>
         </div>
       </div>
 
@@ -2308,11 +2416,11 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
                   <React.Fragment key={row.month}>
                     <tr className="expandable-row" onClick={() => setExpandedMonth((current) => current === row.month ? null : row.month)}>
                     <td data-label="Month" className="tm"><button type="button" className="expand-btn">{expandedMonth === row.month ? '-' : '+'}</button>{row.month}</td>
-                    <td data-label="P&L" className="tm" style={{color:row.pnl>=0?C.grn:C.red,fontWeight:600}}>{fmtS(row.pnl)}</td>
+                    <td data-label="P&L" className="tm" style={{color:row.pnl>=0?C.grn:C.red,fontWeight:600}}>{fmtS(row.pnl, row.money_context)}</td>
                     <td data-label="Closed Deals" className="tm">{row.trades}</td>
                     <td data-label="Profitable / Loss Account-Days" className="tm" style={{color:C.grn}}>{row.winDays} / {row.lossDays}</td>
-                    <td data-label="Best" className="tm" style={{color:C.grn}}>{fmtS(row.bestDay || 0)}</td>
-                    <td data-label="Worst" className="tm" style={{color:C.red}}>{fmtS(row.worstDay || 0)}</td>
+                    <td data-label="Best" className="tm" style={{color:C.grn}}>{fmtS(row.bestDay || 0, row.money_context)}</td>
+                    <td data-label="Worst" className="tm" style={{color:C.red}}>{fmtS(row.worstDay || 0, row.money_context)}</td>
                     </tr>
                     {expandedMonth === row.month ? (
                       <tr className="month-detail-row">
@@ -2321,7 +2429,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
                             {row.accounts.slice(0, 8).map((account) => (
                               <div key={`${row.month}-${account.account_number}`}>
                                 <span>{account.name}</span>
-                                <b style={{ color:pclr(account.pnl) }}>{fmtS(account.pnl)}</b>
+                                <b style={{ color:pclr(account.pnl) }}>{fmtS(account.pnl, account)}</b>
                                 <em>{account.trades} closed deals / {account.lots.toFixed(2)} lots</em>
                               </div>
                             ))}
@@ -2479,7 +2587,7 @@ function MiniPnlBars({ points, balance = 0 }) {
   )
 }
 
-function PeriodCard({ label, stats, balance }) {
+function PeriodCard({ label, stats, balance, moneyContext = null }) {
   const positive = Number(stats.pnl || 0) >= 0
   const rebateLots = Number(stats.rebateLots || 0)
   const rawLots = Number(stats.lots || 0)
@@ -2488,7 +2596,7 @@ function PeriodCard({ label, stats, balance }) {
     <div className={`period-card ${positive ? 'positive' : 'negative'}`}>
       <div className="period-card-head">
         <span>{label}</span>
-        <strong>{fmtS(stats.pnl)}</strong>
+        <strong>{fmtS(stats.pnl, moneyContext)}</strong>
       </div>
       <div className="period-meta">
         <span>{stats.trades} closed deals</span>
@@ -2540,10 +2648,10 @@ function AccountDrilldown({ account, snapshots = [] }) {
         <div className="ea-detail-grid">
           <div className="ea-equity-card">
             <div className="detail-stat-row">
-              <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
-              <div><span>Equity</span><b>{fmtM(account.equity)}</b></div>
-              <div><span>Floating</span><b style={{ color:pclr(floating) }}>{fmtS(floating)}</b></div>
-              <div><span>Total Closed P&L</span><b style={{ color:pclr(closedProfit) }}>{fmtS(closedProfit)}</b></div>
+              <div><span>Balance</span><b>{fmtM(account.balance, false, account)}</b></div>
+              <div><span>Equity</span><b>{fmtM(account.equity, false, account)}</b></div>
+              <div><span>Floating</span><b style={{ color:pclr(floating) }}>{fmtS(floating, account)}</b></div>
+              <div><span>Total Closed P&L</span><b style={{ color:pclr(closedProfit) }}>{fmtS(closedProfit, account)}</b></div>
             </div>
             <MiniLineChart points={equityPoints} />
             <div className="detail-risk-row">
@@ -2553,13 +2661,13 @@ function AccountDrilldown({ account, snapshots = [] }) {
               <div><span>Rebate Lots</span><b>{fmtLots(totalRebateLots)}</b></div>
               <div><span>Total Rebate</span><b style={{ color:C.grn }}>{fmtM(totalRebate)}</b></div>
               <div><span>Rebate Rate</span><b>{fmtM(rebateRate)} / lot</b></div>
-              <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
+              <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account), false, account)}</b></div>
             </div>
           </div>
           <div className="period-grid">
-            <PeriodCard label={`${reportingDayLabel(stats.today.reportingDate)} Profit / Loss`} stats={stats.today} balance={account.balance} />
-            <PeriodCard label="Weekly Profit / Loss" stats={stats.week} balance={account.balance} />
-            <PeriodCard label="Monthly Profit / Loss" stats={stats.month} balance={account.balance} />
+            <PeriodCard label={`${reportingDayLabel(stats.today.reportingDate)} Profit / Loss`} stats={stats.today} balance={account.balance} moneyContext={account} />
+            <PeriodCard label="Weekly Profit / Loss" stats={stats.week} balance={account.balance} moneyContext={account} />
+            <PeriodCard label="Monthly Profit / Loss" stats={stats.month} balance={account.balance} moneyContext={account} />
           </div>
         </div>
         <div className="detail-history">
@@ -2568,7 +2676,7 @@ function AccountDrilldown({ account, snapshots = [] }) {
             {recentDays.length === 0 ? <div className="empty-note">No daily history for this EA yet.</div> : recentDays.map((row) => (
               <div className="detail-day" key={`${account.account_number}-${row.date}`}>
                 <span>{row.date}</span>
-                <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
+                <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit, account)}</b>
                 <em>{Number(row.daily_trades || 0)} closed deals</em>
                 <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
                 {numericField(row, ['daily_rebate_lots', 'rebate_lots']) !== null && <em>{Number(numericField(row, ['daily_rebate_lots', 'rebate_lots']) || 0).toFixed(4)} rebate lots</em>}
@@ -2692,18 +2800,18 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                   <div className="eak-balance-equity">
                     <div>
                       <span className="eakl">Balance</span>
-                      <strong className="eakv">{fmtM(ea.balance)}</strong>
+                      <strong className="eakv">{fmtM(ea.balance, false, ea)}</strong>
                     </div>
                     <div>
                       <span className="eakl">Equity</span>
-                      <strong className="eakv">{fmtM(ea.equity)}</strong>
+                      <strong className="eakv">{fmtM(ea.equity, false, ea)}</strong>
                     </div>
                   </div>
                 </div>
                 {[
                   ["Peak DD",   maxDrawdown.toFixed(2)+"%", maxDrawdown>5?"r":"y"],
-                  ["Floating",  fmtS(floating),    floating>=0?"g":"r"],
-                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} P&L`, fmtS(dailyProfit), dailyProfit>=0?"g":"r"],
+                  ["Floating",  fmtS(floating, ea),    floating>=0?"g":"r"],
+                  [`${reportingDayLabel(latestHistoryRow(ea)?.date)} P&L`, fmtS(dailyProfit, ea), dailyProfit>=0?"g":"r"],
                   [`${reportingDayLabel(latestHistoryRow(ea)?.date)} Rebate`, fmtM(accountTodayRebate(ea)), "g"],
                   ["Open Lots", openLots.toFixed(2), ""],
                 ].map(([l,v,c]) => {
@@ -2776,9 +2884,9 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                     </td>
                     <td data-label="Account" className="tm">{maskAccountNumber(ea.account_number)}</td>
                     <td data-label="Broker" style={{color:C.t3,fontSize:11}}>{ea.broker}</td>
-                    <td data-label="Balance" className="tm">{fmtM(ea.balance)}</td>
-                    <td data-label="Equity" className="tm">{fmtM(ea.equity)}</td>
-                    <td data-label="Floating" className="tm" style={{color:pclr(floating)}}>{fmtS(floating)}</td>
+                    <td data-label="Balance" className="tm">{fmtM(ea.balance, false, ea)}</td>
+                    <td data-label="Equity" className="tm">{fmtM(ea.equity, false, ea)}</td>
+                    <td data-label="Floating" className="tm" style={{color:pclr(floating)}}>{fmtS(floating, ea)}</td>
                     <td data-label="Peak DD" className="tm" style={{color:C.yel}}>{formatPercent(maxDrawdown)}</td>
                     <td data-label="Closed Lots" className="tm">{fmtLots(accountClosedLots(ea))}</td>
                     <td data-label="Status"><StatusBadge age={age} /></td>
@@ -2797,6 +2905,7 @@ function SymbolsPage({ symbols }) {
   const [category, setCategory] = useState('all')
   const categories = Array.from(new Set(symbols.map((symbol) => symbol.category))).sort()
   const visibleSymbols = category === 'all' ? symbols : symbols.filter((symbol) => symbol.category === category)
+  const symbolsMoneyContext = moneyContextForItems(visibleSymbols.map((symbol) => symbol.money_context).filter(Boolean))
   const summary = visibleSymbols.reduce((acc, symbol) => ({
     trades: acc.trades + symbol.trades,
     lots: acc.lots + symbol.lots,
@@ -2810,7 +2919,7 @@ function SymbolsPage({ symbols }) {
         <MetricCard label="Open Symbols" value={visibleSymbols.length} tone="a" bar={C.acc} meta={category === 'all' ? 'all categories' : category} />
         <MetricCard label="Open Trades" value={summary.trades} bar={C.blu} meta="symbol exposure" />
         <MetricCard label="Total Lots" value={summary.lots.toFixed(2)} bar={C.yel} meta="combined volume" />
-        <MetricCard label="Floating P&L" value={fmtS(summary.profit)} tone={summary.profit >= 0 ? 'g' : 'r'} bar={summary.profit >= 0 ? C.grn : C.red} meta="unrealized" />
+        <MetricCard label="Floating P&L" value={fmtS(summary.profit, symbolsMoneyContext)} tone={summary.profit >= 0 ? 'g' : 'r'} bar={summary.profit >= 0 ? C.grn : C.red} meta="unrealized" />
       </div>
       <Card className="sec">
         <CardHeader className="sec-h symbol-section-head p-0">
@@ -2835,7 +2944,7 @@ function SymbolsPage({ symbols }) {
                 {[
                   ["Open Trades", sym.trades,  C.t1,  "across all EAs", "symbol-number"],
                   ["Total Lots",  sym.lots.toFixed(2), C.acc,  "combined exposure", "symbol-number"],
-                  ["Floating P&L",fmtS(sym.profit), pclr(sym.profit), "unrealized", "symbol-money"],
+                  ["Floating P&L",fmtS(sym.profit, sym.money_context), pclr(sym.profit), "unrealized", "symbol-money"],
                 ].map(([l,v,clr,sub,cls]) => (
                   <div key={l}>
                     <div className="sl" style={{ marginBottom:6 }}>{l}</div>
@@ -2893,7 +3002,7 @@ function SymbolsPage({ symbols }) {
                   <TableCell data-label="Lots" className="tm symbol-number">{symbol.lots.toFixed(2)}</TableCell>
                   <TableCell data-label="Buy / Sell" className="tm symbol-number">{symbol.buy} / {symbol.sell}</TableCell>
                   <TableCell data-label="Accounts" className="tm symbol-number">{symbol.accounts}</TableCell>
-                  <TableCell data-label="Floating" className="tm symbol-money" style={{ color:pclr(symbol.profit), fontWeight:600 }}>{fmtS(symbol.profit)}</TableCell>
+                  <TableCell data-label="Floating" className="tm symbol-money" style={{ color:pclr(symbol.profit), fontWeight:600 }}>{fmtS(symbol.profit, symbol.money_context)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -3034,7 +3143,7 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
                   <TableCell data-label="Direction"><Badge className={`badge ${String(t.trade_type).toUpperCase()==="BUY"?"bbuy":"bsell"}`}>{String(t.trade_type).toUpperCase()}</Badge></TableCell>
                   <TableCell data-label="Lots" className="tm">{Number(t.lots).toFixed(2)}</TableCell>
                   {isAdmin && <TableCell data-label="Open Price" className="tm">{Number(t.open_price).toFixed(5)}</TableCell>}
-                  <TableCell data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit)}</TableCell>
+                  <TableCell data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit, t.account)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -3101,15 +3210,15 @@ function MT5TerminalCard({ account, state, expanded, onToggle }) {
         <CardContent className="terminal-body p-0">
         <div className="terminal-balance">
           <span>Equity</span>
-          <b className="symbol-money">{fmtM(account.equity)}</b>
-          <em className="symbol-money" style={{ color:pclr(state.floating) }}>{fmtS(state.floating)}</em>
+          <b className="symbol-money">{fmtM(account.equity, false, account)}</b>
+          <em className="symbol-money" style={{ color:pclr(state.floating) }}>{fmtS(state.floating, account)}</em>
         </div>
         <div className="terminal-grid">
-          <div><span>Balance</span><b>{fmtM(account.balance)}</b></div>
+          <div><span>Balance</span><b>{fmtM(account.balance, false, account)}</b></div>
           <div><span>Current DD</span><b style={{ color: state.currentDd >= 10 ? C.red : state.currentDd >= 3 ? C.yel : C.t1 }}>{formatPercent(state.currentDd)}</b></div>
           <div><span>Open Lots</span><b>{state.openLots.toFixed(2)}</b></div>
           <div><span>Open Trades</span><b>{state.trades.length}</b></div>
-          <div><span>{reportingDayLabel(latestHistoryRow(account)?.date)} P&L</span><b style={{ color:pclr(todayPnl) }}>{fmtS(todayPnl)}</b></div>
+          <div><span>{reportingDayLabel(latestHistoryRow(account)?.date)} P&L</span><b style={{ color:pclr(todayPnl) }}>{fmtS(todayPnl, account)}</b></div>
           <div><span>{reportingDayLabel(latestHistoryRow(account)?.date)} Closed Deals</span><b>{todayTrades}</b></div>
           <div><span>Closed Lots</span><b>{closedLots === null ? '-' : fmtLots(closedLots)}</b></div>
           <div><span>Margin Lv</span><b style={{ color:marginColor }}>{state.ml === null ? '-' : `${state.ml.toFixed(0)}%`}</b></div>
@@ -3129,7 +3238,7 @@ function MT5TerminalCard({ account, state, expanded, onToggle }) {
               <span>{trade.symbol}</span>
               <b className={String(trade.trade_type || '').toUpperCase() === 'BUY' ? 'buy' : 'sell'}>{String(trade.trade_type || '').toUpperCase()}</b>
               <em>{Number(trade.lots || 0).toFixed(2)} lots</em>
-              <strong style={{ color:pclr(trade.profit) }}>{fmtS(trade.profit)}</strong>
+              <strong style={{ color:pclr(trade.profit) }}>{fmtS(trade.profit, account)}</strong>
             </div>
           ))}
         </CardContent>
@@ -3345,6 +3454,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
     winDays: acc.winDays + (row.trades > 0 && row.pnl > 0 ? 1 : 0),
     lossDays: acc.lossDays + (row.trades > 0 && row.pnl < 0 ? 1 : 0),
   }), { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0, winDays: 0, lossDays: 0 })
+  const historyMoneyContext = moneyContextForItems(filteredRows)
   const exportHistory = () => {
     downloadCsv('the-entity-closed-history.csv', [
       ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots', 'rebate_lots', 'rebate_usd'],
@@ -3354,7 +3464,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
   return (
     <>
       <div className="history-summary">
-        <div className="stat"><div className="sl">Closed P&L</div><div className={`sv ${summary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(summary.pnl)}</div><div className="ss">selected period</div></div>
+        <div className="stat"><div className="sl">Closed P&L</div><div className={`sv ${summary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(summary.pnl, historyMoneyContext)}</div><div className="ss">selected period</div></div>
         <div className="stat"><div className="sl">Closed Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">reported volume</div></div>
         <div className="stat"><div className="sl">Rebate</div><div className="sv g">{fmtM(summary.rebate)}</div><div className="ss">{summary.rebateLots.toFixed(4)} rebate lots</div></div>
         <div className="stat"><div className="sl">Closed Deals</div><div className="sv">{summary.trades}</div><div className="ss">daily history total</div></div>
@@ -3441,7 +3551,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
                   <TableCell data-label="EA" className="tn">{row.name}</TableCell>
                   <TableCell data-label="Account" className="tm">{maskAccountNumber(row.account_number)}</TableCell>
                   <TableCell data-label="Broker" style={{ color:C.t3, fontSize:11 }}>{row.broker}</TableCell>
-                  <TableCell data-label="P&L" className="tm"><Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{fmtS(row.pnl)}</Badge></TableCell>
+                  <TableCell data-label="P&L" className="tm"><Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{fmtS(row.pnl, row)}</Badge></TableCell>
                   <TableCell data-label="Closed Deals" className="tm">{row.trades}</TableCell>
                   <TableCell data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</TableCell>
                   <TableCell data-label="Rebate" className="tm" style={{ color:C.grn }}>{fmtM(row.rebate)}</TableCell>

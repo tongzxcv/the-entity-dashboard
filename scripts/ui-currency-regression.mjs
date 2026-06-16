@@ -26,6 +26,9 @@ const checks = [
   ['backend only defaults when payload and account scale are missing', files.backend.includes('SELECT account_currency, money_scale FROM accounts')],
   ['frontend normalizes dashboard payload', files.app.includes('function normalizeDashboardPayload')],
   ['frontend applies normalized payload on fetch', files.app.includes('setData(normalizeDashboardPayload(result))')],
+  ['frontend can display USC accounts with cent symbol', files.app.includes("const moneySymbol = (context) => accountCurrency(context) === 'USC' ? '¢' : '$'")],
+  ['frontend restores MT5 cent display amount for normalized USC accounts', files.app.includes('return context.money_normalized ? amount * accountMoneyScale(context) : amount')],
+  ['frontend carries currency metadata into daily history rows', files.app.includes('account_currency: account.account_currency') && files.app.includes('money_normalized: account.money_normalized')],
   ['frontend documents rebate no-scale rule', files.app.includes('Rebate is paid in USD per lot; do not money-scale')],
   ['frontend displays rebate lots separately', files.app.includes('Rebate Lots') && files.app.includes('rebate_lots')],
 ]

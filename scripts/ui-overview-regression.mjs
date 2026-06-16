@@ -84,6 +84,14 @@ const checks = [
       overview.includes('<RebateSummaryCard accounts={filteredAccounts} />'),
   },
   {
+    name: 'Overview uses monthly calendar heatmap with weekly summaries',
+    ok:
+      overview.includes('Monthly trading calendar') &&
+      overview.includes('monthly-calendar') &&
+      overview.includes('calendarWeekSummaries') &&
+      overview.includes('Monthly P/L'),
+  },
+  {
     name: 'Admin-only pages and sync remain gated',
     ok:
       all.includes('...(isAdmin ? [') &&
