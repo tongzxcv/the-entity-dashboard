@@ -6,6 +6,8 @@ services:
       - "8000"
     environment:
       - INGEST_API_KEY=${INGEST_API_KEY}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - DEMO_PASSWORD=${DEMO_PASSWORD:-demo}
       - CORS_ORIGINS=http://161.118.245.238:3000
       - DEMO_HIDE_ACCOUNT_IDS=true
       - DEMO_HIDE_TICKETS=true
