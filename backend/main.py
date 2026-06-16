@@ -313,22 +313,34 @@ def parse_float(value, default: float = 0.0) -> float:
         return default
 
 
-def resolve_rebate_lots(data, rebate_rate: float, rebate_total: float) -> float:
+def scaled_rebate_lots(raw_lots: float, money_scale: float) -> float:
+    if money_scale and money_scale > 1:
+        return raw_lots / money_scale
+    return raw_lots
+
+
+def resolve_rebate_lots(data, rebate_rate: float, rebate_total: float, money_scale: float) -> float:
     for key in ("rebate_lots_total", "total_rebate_lots", "rebate_lots"):
         if key in data and data.get(key) is not None:
             return parse_float(data.get(key), 0.0)
+    raw_lots = parse_float(data.get("total_closed_lots"), 0.0)
+    if raw_lots:
+        return scaled_rebate_lots(raw_lots, money_scale)
     if rebate_rate:
-        return rebate_total / rebate_rate
-    return parse_float(data.get("total_closed_lots"), 0.0)
+        return scaled_rebate_lots(rebate_total / rebate_rate, money_scale)
+    return 0.0
 
 
-def resolve_daily_rebate_lots(row, rebate_rate: float, daily_rebate: float) -> float:
+def resolve_daily_rebate_lots(row, rebate_rate: float, daily_rebate: float, money_scale: float) -> float:
     for key in ("daily_rebate_lots", "rebate_lots"):
         if key in row and row.get(key) is not None:
             return parse_float(row.get(key), 0.0)
+    raw_lots = parse_float(row.get("daily_lots"), 0.0)
+    if raw_lots:
+        return scaled_rebate_lots(raw_lots, money_scale)
     if rebate_rate:
-        return daily_rebate / rebate_rate
-    return parse_float(row.get("daily_lots"), 0.0)
+        return scaled_rebate_lots(daily_rebate / rebate_rate, money_scale)
+    return 0.0
 
 
 def resolve_account_money_settings(cursor, account_number, data) -> tuple[str, float]:
@@ -505,8 +517,8 @@ async def update_mt5_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
-        rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total)
         account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
+        rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total, money_scale)
         cursor.execute(
             '''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_lots_total, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -553,7 +565,7 @@ async def update_mt5_data(request: Request):
                 continue
             row_daily_lots = float(row.get('daily_lots', 0) or 0)
             row_daily_rebate = float(row.get('daily_rebate', (row_daily_lots * rebate_rate)) or 0)
-            row_daily_rebate_lots = resolve_daily_rebate_lots(row, rebate_rate, row_daily_rebate)
+            row_daily_rebate_lots = resolve_daily_rebate_lots(row, rebate_rate, row_daily_rebate, money_scale)
             cursor.execute(
                 '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
@@ -568,6 +580,7 @@ async def update_mt5_data(request: Request):
                 {"daily_rebate_lots": data.get("today_rebate_lots"), "daily_lots": today_lots},
                 rebate_rate,
                 today_rebate,
+                money_scale,
             )
             cursor.execute(
                 '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update)
@@ -594,8 +607,8 @@ async def update_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
-        rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total)
         account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
+        rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total, money_scale)
         cursor.execute('''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_lots_total, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                           ON CONFLICT(account_number) DO UPDATE SET
@@ -627,6 +640,7 @@ async def update_data(request: Request):
                 {"daily_rebate_lots": data.get("daily_rebate_lots", data.get("today_rebate_lots")), "daily_lots": daily_lots},
                 rebate_rate,
                 daily_rebate,
+                money_scale,
             )
             cursor.execute('''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], target_date, data.get('daily_profit', 0), data.get('daily_trades', 0), daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale))
         conn.commit(); conn.close(); return {"status": "success"}
