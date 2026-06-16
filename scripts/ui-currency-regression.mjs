@@ -7,12 +7,17 @@ const files = {
 }
 
 const checks = [
-  ['reporter version bumped', files.reporter.includes('#property version   "1.05"')],
+  ['reporter version bumped', files.reporter.includes('#property version   "1.06"')],
   ['reporter has currency override input', files.reporter.includes('AccountCurrencyOverride')],
+  ['reporter has rebate lot multiplier input', files.reporter.includes('RebateLotMultiplier')],
+  ['reporter auto-scales rebate lots by money scale', files.reporter.includes('EffectiveRebateLotMultiplier') && files.reporter.includes('1.0 / money_scale')],
   ['reporter emits account currency', files.reporter.includes('account_currency')],
   ['reporter emits money scale', files.reporter.includes('money_scale')],
+  ['reporter emits rebate lots', files.reporter.includes('daily_rebate_lots') && files.reporter.includes('total_rebate_lots')],
   ['backend stores account currency', files.backend.includes('ADD COLUMN account_currency')],
   ['backend stores money scale', files.backend.includes('ADD COLUMN money_scale')],
+  ['backend stores rebate lots', files.backend.includes('ADD COLUMN rebate_lots_total') && files.backend.includes('ADD COLUMN daily_rebate_lots')],
+  ['backend resolves rebate lot fallback', files.backend.includes('def resolve_rebate_lots') && files.backend.includes('def resolve_daily_rebate_lots')],
   ['backend normalizes currency', files.backend.includes('def normalize_account_currency')],
   ['backend parses money scale', files.backend.includes('def parse_money_scale')],
   ['backend preserves existing account scale', files.backend.includes('def resolve_account_money_settings')],
@@ -20,6 +25,7 @@ const checks = [
   ['frontend normalizes dashboard payload', files.app.includes('function normalizeDashboardPayload')],
   ['frontend applies normalized payload on fetch', files.app.includes('setData(normalizeDashboardPayload(result))')],
   ['frontend documents rebate no-scale rule', files.app.includes('Rebate is paid in USD per lot; do not money-scale')],
+  ['frontend displays rebate lots separately', files.app.includes('Rebate Lots') && files.app.includes('rebate_lots')],
 ]
 
 const failures = checks.filter(([, passed]) => !passed).map(([name]) => name)

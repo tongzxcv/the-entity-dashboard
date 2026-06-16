@@ -419,6 +419,22 @@ function accountRebate(account) {
   return Number(accountClosedLots(account) || 0) * accountRebateRate(account)
 }
 
+function rebateLotsFromAmount(rebate, rate) {
+  const numericRate = Number(rate || 0)
+  if (!numericRate) return null
+  const numericRebate = Number(rebate || 0)
+  return numericRebate / numericRate
+}
+
+function accountRebateLots(account) {
+  const reported = numericField(account, ['rebate_lots_total', 'total_rebate_lots', 'rebate_lots'])
+  if (reported !== null) return reported
+  const rebate = accountReportedRebate(account)
+  const inferred = rebateLotsFromAmount(rebate, accountRebateRate(account))
+  if (inferred !== null) return inferred
+  return accountClosedLots(account)
+}
+
 function accountTodayRebate(account) {
   const latest = latestHistoryRow(account)
   const reported = numericField(latest, ['daily_rebate', 'rebate', 'total_rebate'])
@@ -660,18 +676,21 @@ function buildAccountPeriodStats(account) {
     const rowLots = Number(row.daily_lots || 0)
     const rowRebate = numericField(row, ['daily_rebate', 'rebate', 'total_rebate'])
     const rebate = rowRebate !== null ? rowRebate : rowLots * rebateRate
-    const current = byDate.get(key) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
+    const rebateLots = numericField(row, ['daily_rebate_lots', 'rebate_lots']) ?? rebateLotsFromAmount(rebate, rebateRate) ?? rowLots
+    const current = byDate.get(key) || { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 }
     current.pnl += Number(row.daily_profit || 0)
     current.trades += Number(row.daily_trades || 0)
     current.lots += rowLots
+    current.rebateLots += rebateLots
     current.rebate += rebate
     byDate.set(key, current)
 
     const month = key.slice(0, 7)
-    const monthCurrent = byMonth.get(month) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
+    const monthCurrent = byMonth.get(month) || { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 }
     monthCurrent.pnl += Number(row.daily_profit || 0)
     monthCurrent.trades += Number(row.daily_trades || 0)
     monthCurrent.lots += rowLots
+    monthCurrent.rebateLots += rebateLots
     monthCurrent.rebate += rebate
     byMonth.set(month, monthCurrent)
   })
@@ -694,19 +713,25 @@ function buildAccountPeriodStats(account) {
     const label = new Date(Number(yearKey), index, 1).toLocaleDateString(undefined, { month: 'short' })
     return { key: month, label, value: Number(byMonth.get(month)?.pnl || 0) }
   })
-  const todayData = byDate.get(reportingDate) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
+  const todayData = byDate.get(reportingDate) || { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 }
   const weekData = weeklySeries.reduce((acc, point) => {
-    const item = byDate.get(point.key) || { pnl: 0, trades: 0, lots: 0, rebate: 0 }
-    return { pnl: acc.pnl + item.pnl, trades: acc.trades + item.trades, lots: acc.lots + item.lots, rebate: acc.rebate + item.rebate }
-  }, { pnl: 0, trades: 0, lots: 0, rebate: 0 })
+    const item = byDate.get(point.key) || { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 }
+    return { pnl: acc.pnl + item.pnl, trades: acc.trades + item.trades, lots: acc.lots + item.lots, rebateLots: acc.rebateLots + item.rebateLots, rebate: acc.rebate + item.rebate }
+  }, { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 })
   const monthData = history
     .filter((row) => String(row.date || '').startsWith(monthKey))
-    .reduce((acc, row) => ({
-      pnl: acc.pnl + Number(row.daily_profit || 0),
-      trades: acc.trades + Number(row.daily_trades || 0),
-      lots: acc.lots + Number(row.daily_lots || 0),
-      rebate: acc.rebate + (numericField(row, ['daily_rebate', 'rebate', 'total_rebate']) ?? (Number(row.daily_lots || 0) * rebateRate)),
-    }), { pnl: 0, trades: 0, lots: 0, rebate: 0 })
+    .reduce((acc, row) => {
+      const lots = Number(row.daily_lots || 0)
+      const rebate = numericField(row, ['daily_rebate', 'rebate', 'total_rebate']) ?? (lots * rebateRate)
+      const rebateLots = numericField(row, ['daily_rebate_lots', 'rebate_lots']) ?? rebateLotsFromAmount(rebate, rebateRate) ?? lots
+      return {
+        pnl: acc.pnl + Number(row.daily_profit || 0),
+        trades: acc.trades + Number(row.daily_trades || 0),
+        lots: acc.lots + lots,
+        rebateLots: acc.rebateLots + rebateLots,
+        rebate: acc.rebate + rebate,
+      }
+    }, { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0 })
 
   return {
     today: { ...todayData, series: dailySeries, reportingDate },
@@ -739,6 +764,7 @@ function buildClosedHistoryRows(accounts) {
     (account.daily_history || []).map((row) => {
       const lots = Number(row.daily_lots || 0)
       const reportedRebate = numericField(row, ['daily_rebate', 'rebate', 'total_rebate'])
+      const rebate = reportedRebate !== null ? reportedRebate : lots * accountRebateRate(account)
       return {
         date: row.date,
         account,
@@ -748,7 +774,8 @@ function buildClosedHistoryRows(accounts) {
         pnl: Number(row.daily_profit || 0),
         trades: Number(row.daily_trades || 0),
         lots,
-        rebate: reportedRebate !== null ? reportedRebate : lots * accountRebateRate(account),
+        rebateLots: numericField(row, ['daily_rebate_lots', 'rebate_lots']) ?? rebateLotsFromAmount(rebate, accountRebateRate(account)) ?? lots,
+        rebate,
       }
     }),
   ).filter((row) => row.date).sort((a, b) => String(b.date).localeCompare(String(a.date)))
@@ -776,11 +803,12 @@ function buildWeekendExposure(accounts) {
 function buildRebateSummary(accounts) {
   const rows = accounts
     .map((account) => {
-      const lots = accountClosedLots(account) || 0
+      const closedLots = accountClosedLots(account) || 0
       const reported = accountReportedRebate(account)
       const rate = accountRebateRate(account)
-      const rebate = reported !== null ? reported : lots * rate
-      return { account, rebate, lots, rate, estimated: reported === null }
+      const rebate = reported !== null ? reported : closedLots * rate
+      const lots = accountRebateLots(account) ?? closedLots
+      return { account, rebate, lots, closedLots, rate, estimated: reported === null }
     })
     .filter((row) => row.lots > 0 || Math.abs(row.rebate) > 0.0001)
   const rates = Array.from(new Set(rows.map((row) => Number(row.rate || 0).toFixed(4))))
@@ -1439,7 +1467,7 @@ function RebateSummaryCard({ accounts }) {
       <div className="rpb" style={{ color: rebate.hasData ? C.grn : C.t2 }}>{fmtM(rebate.total)}</div>
       <div className="rps">
         {rebate.hasData
-          ? `${rebate.totalLots.toFixed(2)} closed lots · ${rebate.rateLabel}${rebate.estimated ? ' estimate' : ''}`
+          ? `${rebate.totalLots.toFixed(4)} rebate lots · ${rebate.rateLabel}${rebate.estimated ? ' estimate' : ''}`
           : 'No closed lots yet. Rebate will appear after reporter sends closed history.'}
       </div>
       <div className="rebate-mini">
@@ -2453,6 +2481,9 @@ function MiniPnlBars({ points, balance = 0 }) {
 
 function PeriodCard({ label, stats, balance }) {
   const positive = Number(stats.pnl || 0) >= 0
+  const rebateLots = Number(stats.rebateLots || 0)
+  const rawLots = Number(stats.lots || 0)
+  const showRebateLots = rebateLots > 0 && Math.abs(rebateLots - rawLots) > 0.0001
   return (
     <div className={`period-card ${positive ? 'positive' : 'negative'}`}>
       <div className="period-card-head">
@@ -2462,6 +2493,7 @@ function PeriodCard({ label, stats, balance }) {
       <div className="period-meta">
         <span>{stats.trades} closed deals</span>
         <span>{Number(stats.lots || 0).toFixed(2)} lots</span>
+        {showRebateLots && <span>{rebateLots.toFixed(4)} rebate lots</span>}
         <span>{fmtM(stats.rebate)} rebate</span>
       </div>
       <MiniPnlBars points={stats.series} balance={balance} />
@@ -2483,6 +2515,7 @@ function AccountDrilldown({ account, snapshots = [] }) {
   const openLots = accountOpenLots(account)
   const openTrades = Number(account.open_positions || (account.open_trades || account.trades || []).length || 0)
   const closedLots = accountClosedLots(account)
+  const totalRebateLots = accountRebateLots(account)
   const totalRebate = accountRebate(account)
   const rebateRate = accountRebateRate(account)
   const recentDays = (account.daily_history || []).slice(0, 7)
@@ -2517,6 +2550,7 @@ function AccountDrilldown({ account, snapshots = [] }) {
               <div><span>Open Trades</span><b>{openTrades}</b></div>
               <div><span>Open Lots</span><b>{openLots.toFixed(2)}</b></div>
               <div><span>Closed Lots</span><b>{fmtLots(closedLots)}</b></div>
+              <div><span>Rebate Lots</span><b>{fmtLots(totalRebateLots)}</b></div>
               <div><span>Total Rebate</span><b style={{ color:C.grn }}>{fmtM(totalRebate)}</b></div>
               <div><span>Rebate Rate</span><b>{fmtM(rebateRate)} / lot</b></div>
               <div><span>Peak DD Amount</span><b style={{ color:C.red }}>{fmtM(accountPeakDrawdownAmount(account))}</b></div>
@@ -2537,6 +2571,7 @@ function AccountDrilldown({ account, snapshots = [] }) {
                 <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit)}</b>
                 <em>{Number(row.daily_trades || 0)} closed deals</em>
                 <em>{Number(row.daily_lots || 0).toFixed(2)} lots</em>
+                {numericField(row, ['daily_rebate_lots', 'rebate_lots']) !== null && <em>{Number(numericField(row, ['daily_rebate_lots', 'rebate_lots']) || 0).toFixed(4)} rebate lots</em>}
                 <em>{fmtM(numericField(row, ['daily_rebate', 'rebate', 'total_rebate']) ?? (Number(row.daily_lots || 0) * rebateRate))} rebate</em>
               </div>
             ))}
@@ -3305,14 +3340,15 @@ function HistoryPage({ accounts, isAdmin = false }) {
     pnl: acc.pnl + row.pnl,
     trades: acc.trades + row.trades,
     lots: acc.lots + row.lots,
+    rebateLots: acc.rebateLots + Number(row.rebateLots || 0),
     rebate: acc.rebate + row.rebate,
     winDays: acc.winDays + (row.trades > 0 && row.pnl > 0 ? 1 : 0),
     lossDays: acc.lossDays + (row.trades > 0 && row.pnl < 0 ? 1 : 0),
-  }), { pnl: 0, trades: 0, lots: 0, rebate: 0, winDays: 0, lossDays: 0 })
+  }), { pnl: 0, trades: 0, lots: 0, rebateLots: 0, rebate: 0, winDays: 0, lossDays: 0 })
   const exportHistory = () => {
     downloadCsv('the-entity-closed-history.csv', [
-      ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots', 'rebate_usd'],
-      ...filteredRows.map((row) => [row.date, row.name, row.account_number, row.broker, row.pnl > 0 ? 'profit' : row.pnl < 0 ? 'loss' : 'flat', row.pnl.toFixed(2), row.trades, row.lots.toFixed(2), row.rebate.toFixed(2)]),
+      ['date', 'ea_name', 'account', 'broker', 'result', 'pnl', 'closed_deals', 'closed_lots', 'rebate_lots', 'rebate_usd'],
+      ...filteredRows.map((row) => [row.date, row.name, row.account_number, row.broker, row.pnl > 0 ? 'profit' : row.pnl < 0 ? 'loss' : 'flat', row.pnl.toFixed(2), row.trades, row.lots.toFixed(2), Number(row.rebateLots || 0).toFixed(4), row.rebate.toFixed(2)]),
     ])
   }
   return (
@@ -3320,7 +3356,7 @@ function HistoryPage({ accounts, isAdmin = false }) {
       <div className="history-summary">
         <div className="stat"><div className="sl">Closed P&L</div><div className={`sv ${summary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(summary.pnl)}</div><div className="ss">selected period</div></div>
         <div className="stat"><div className="sl">Closed Lots</div><div className="sv">{summary.lots.toFixed(2)}</div><div className="ss">reported volume</div></div>
-        <div className="stat"><div className="sl">Rebate</div><div className="sv g">{fmtM(summary.rebate)}</div><div className="ss">closed lots x rate</div></div>
+        <div className="stat"><div className="sl">Rebate</div><div className="sv g">{fmtM(summary.rebate)}</div><div className="ss">{summary.rebateLots.toFixed(4)} rebate lots</div></div>
         <div className="stat"><div className="sl">Closed Deals</div><div className="sv">{summary.trades}</div><div className="ss">daily history total</div></div>
         <div className="stat"><div className="sl">Profitable / Loss Account-Days</div><div className="sv">{summary.winDays} / {summary.lossDays}</div><div className="ss">account-days with deals</div></div>
       </div>

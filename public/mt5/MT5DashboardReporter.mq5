@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.05"
+#property version   "1.06"
 #property description "Posts MT5 account, open-position, and closed-deal snapshots to the Forex EA dashboard."
 
 input string DashboardEndpoint = "http://161.118.245.238:3000/api/mt5/update";
@@ -10,6 +10,7 @@ input bool   IncludeDailyHistory = true;
 input int    HistoryLookbackDays = 365;
 input int    HistoryPushIntervalMinutes = 60;
 input double RebatePerLotUsd = 10.0;
+input double RebateLotMultiplier = 0.0;
 input string AccountCurrencyOverride = "";
 input bool   EnableReporter = true;
 
@@ -58,6 +59,15 @@ double MoneyScaleForCurrency(string currency)
    return 1.0;
 }
 
+double EffectiveRebateLotMultiplier(double money_scale)
+{
+   if(RebateLotMultiplier > 0.0)
+      return RebateLotMultiplier;
+   if(money_scale > 1.0)
+      return 1.0 / money_scale;
+   return 1.0;
+}
+
 string PositionTypeName(long type)
 {
    if(type == POSITION_TYPE_BUY) return "BUY";
@@ -82,7 +92,7 @@ int FindDailyHistoryStat(DailyHistoryStat &stats[], string key)
    return -1;
 }
 
-string BuildDailyHistoryJson(int lookback_days)
+string BuildDailyHistoryJson(int lookback_days, double rebate_lot_multiplier)
 {
    if(lookback_days <= 0)
       return "[]";
@@ -144,8 +154,10 @@ string BuildDailyHistoryJson(int lookback_days)
       json += "\"date\":\"" + stats[i].date + "\",";
       json += "\"daily_profit\":" + DoubleToString(stats[i].pnl, 2) + ",";
       json += "\"daily_trades\":" + IntegerToString(stats[i].trades) + ",";
+      double rebate_lots = stats[i].lots * rebate_lot_multiplier;
       json += "\"daily_lots\":" + DoubleToString(stats[i].lots, 2) + ",";
-      json += "\"daily_rebate\":" + DoubleToString(stats[i].lots * RebatePerLotUsd, 2);
+      json += "\"daily_rebate_lots\":" + DoubleToString(rebate_lots, 4) + ",";
+      json += "\"daily_rebate\":" + DoubleToString(rebate_lots * RebatePerLotUsd, 2);
       json += "}";
    }
    json += "]";
@@ -273,6 +285,7 @@ string BuildPayload(bool include_history)
       account_currency = AccountInfoString(ACCOUNT_CURRENCY);
    account_currency = NormalizeAccountCurrency(account_currency);
    double money_scale = MoneyScaleForCurrency(account_currency);
+   double rebate_lot_multiplier = EffectiveRebateLotMultiplier(money_scale);
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double margin = AccountInfoDouble(ACCOUNT_MARGIN);
@@ -317,13 +330,15 @@ string BuildPayload(bool include_history)
    int today_trades = 0;
    double today_lots = 0.0;
    GetTodayClosedStats(today_pnl, today_trades, today_lots);
-   double today_rebate = today_lots * RebatePerLotUsd;
+   double today_rebate_lots = today_lots * rebate_lot_multiplier;
+   double today_rebate = today_rebate_lots * RebatePerLotUsd;
 
    double total_closed_pnl = 0.0;
    int total_closed_trades = 0;
    double total_closed_lots = 0.0;
    GetClosedStats(0, TimeCurrent(), total_closed_pnl, total_closed_trades, total_closed_lots);
-   double total_rebate = total_closed_lots * RebatePerLotUsd;
+   double total_rebate_lots = total_closed_lots * rebate_lot_multiplier;
+   double total_rebate = total_rebate_lots * RebatePerLotUsd;
 
    double peak_dd_amount = 0.0;
    double peak_dd_percent = 0.0;
@@ -344,17 +359,20 @@ string BuildPayload(bool include_history)
    payload += "\"today_pnl\":" + DoubleToString(today_pnl, 2) + ",";
    payload += "\"today_trades\":" + IntegerToString(today_trades) + ",";
    payload += "\"today_lots\":" + DoubleToString(today_lots, 2) + ",";
+   payload += "\"today_rebate_lots\":" + DoubleToString(today_rebate_lots, 4) + ",";
    payload += "\"today_rebate\":" + DoubleToString(today_rebate, 2) + ",";
    payload += "\"total_closed_pnl\":" + DoubleToString(total_closed_pnl, 2) + ",";
    payload += "\"total_closed_trades\":" + IntegerToString(total_closed_trades) + ",";
    payload += "\"total_closed_lots\":" + DoubleToString(total_closed_lots, 2) + ",";
+   payload += "\"total_rebate_lots\":" + DoubleToString(total_rebate_lots, 4) + ",";
    payload += "\"rebate_rate\":" + DoubleToString(RebatePerLotUsd, 2) + ",";
+   payload += "\"rebate_lot_multiplier\":" + DoubleToString(rebate_lot_multiplier, 6) + ",";
    payload += "\"rebate_total\":" + DoubleToString(total_rebate, 2) + ",";
    payload += "\"peak_drawdown_amount\":" + DoubleToString(peak_dd_amount, 2) + ",";
    payload += "\"peak_drawdown_percent\":" + DoubleToString(peak_dd_percent, 2) + ",";
    payload += "\"reporting_date\":\"" + DateKey(TimeCurrent()) + "\"";
    if(include_history)
-      payload += ",\"daily_history\":" + BuildDailyHistoryJson(HistoryLookbackDays);
+      payload += ",\"daily_history\":" + BuildDailyHistoryJson(HistoryLookbackDays, rebate_lot_multiplier);
    payload += "}";
 
    return payload;
