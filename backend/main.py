@@ -519,6 +519,8 @@ async def update_mt5_data(request: Request):
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
         account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
         rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total, money_scale)
+        if rebate_rate:
+            rebate_total = rebate_lots_total * rebate_rate
         cursor.execute(
             '''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_lots_total, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -566,6 +568,8 @@ async def update_mt5_data(request: Request):
             row_daily_lots = float(row.get('daily_lots', 0) or 0)
             row_daily_rebate = float(row.get('daily_rebate', (row_daily_lots * rebate_rate)) or 0)
             row_daily_rebate_lots = resolve_daily_rebate_lots(row, rebate_rate, row_daily_rebate, money_scale)
+            if rebate_rate:
+                row_daily_rebate = row_daily_rebate_lots * rebate_rate
             cursor.execute(
                 '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
@@ -582,6 +586,8 @@ async def update_mt5_data(request: Request):
                 today_rebate,
                 money_scale,
             )
+            if rebate_rate:
+                today_rebate = today_rebate_lots * rebate_rate
             cursor.execute(
                 '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
@@ -609,6 +615,8 @@ async def update_data(request: Request):
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
         account_currency, money_scale = resolve_account_money_settings(cursor, data['account_number'], data)
         rebate_lots_total = resolve_rebate_lots(data, rebate_rate, rebate_total, money_scale)
+        if rebate_rate:
+            rebate_total = rebate_lots_total * rebate_rate
         cursor.execute('''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_lots_total, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                           ON CONFLICT(account_number) DO UPDATE SET
@@ -642,6 +650,8 @@ async def update_data(request: Request):
                 daily_rebate,
                 money_scale,
             )
+            if rebate_rate:
+                daily_rebate = daily_rebate_lots * rebate_rate
             cursor.execute('''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], target_date, data.get('daily_profit', 0), data.get('daily_trades', 0), daily_lots, daily_rebate_lots, daily_rebate, account_currency, money_scale))
         conn.commit(); conn.close(); return {"status": "success"}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

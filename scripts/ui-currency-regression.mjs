@@ -19,6 +19,7 @@ const checks = [
   ['backend stores rebate lots', files.backend.includes('ADD COLUMN rebate_lots_total') && files.backend.includes('ADD COLUMN daily_rebate_lots')],
   ['backend resolves rebate lot fallback', files.backend.includes('def resolve_rebate_lots') && files.backend.includes('def resolve_daily_rebate_lots')],
   ['backend scales legacy rebate lots for cent accounts', files.backend.includes('def scaled_rebate_lots') && files.backend.includes('return raw_lots / money_scale') && files.backend.includes('resolve_rebate_lots(data, rebate_rate, rebate_total, money_scale)')],
+  ['backend normalizes rebate money from rebate lots', files.backend.includes('rebate_total = rebate_lots_total * rebate_rate') && files.backend.includes('row_daily_rebate = row_daily_rebate_lots * rebate_rate') && files.backend.includes('today_rebate = today_rebate_lots * rebate_rate')],
   ['backend normalizes currency', files.backend.includes('def normalize_account_currency')],
   ['backend parses money scale', files.backend.includes('def parse_money_scale')],
   ['backend preserves existing account scale', files.backend.includes('def resolve_account_money_settings')],
