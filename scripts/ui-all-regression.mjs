@@ -8,6 +8,7 @@ const checks = [
   ['ui trades/history', 'scripts/ui-trades-history-regression.mjs'],
   ['ui symbols/preview', 'scripts/ui-symbols-preview-regression.mjs'],
   ['ui admin ops', 'scripts/ui-admin-ops-regression.mjs'],
+  ['ui currency scale', 'scripts/ui-currency-regression.mjs'],
 ]
 
 const failures = []

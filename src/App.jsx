@@ -144,10 +144,113 @@ function getAge(account) {
 }
 
 function accountCurrency(account) {
+  const explicit = normalizeAccountCurrency(account?.account_currency || account?.currency || account?.accountCurrency)
+  if (explicit) return explicit
   const broker = String(account.broker || '').toLowerCase()
   const number = String(account.account_number || '')
   if (broker.includes('cent') || number.includes('usc')) return 'USC'
   return 'USD'
+}
+
+function normalizeAccountCurrency(value) {
+  const currency = String(value || '').trim().toUpperCase()
+  if (!currency) return null
+  if (currency.includes('USC') || currency.includes('CENT')) return 'USC'
+  return currency
+}
+
+function accountMoneyScale(account) {
+  const explicit = Number(account?.money_scale ?? account?.moneyScale)
+  if (Number.isFinite(explicit) && explicit > 0) return explicit
+  return accountCurrency(account) === 'USC' ? 100 : 1
+}
+
+function accountMoneyValue(value, account) {
+  const amount = Number(value || 0)
+  if (account?.money_normalized) return amount
+  return amount / accountMoneyScale(account)
+}
+
+function normalizeDashboardPayload(payload) {
+  if (!payload || typeof payload !== 'object') return payload
+
+  const accountMeta = new Map()
+  const normalizeForAccount = (value, meta) => Number(value || 0) / meta.moneyScale
+
+  const accounts = (payload.accounts || []).map((account) => {
+    const currency = accountCurrency(account)
+    const moneyScale = accountMoneyScale({ ...account, account_currency: currency })
+    const meta = { currency, moneyScale }
+    const key = String(account.account_number || '')
+    if (key) accountMeta.set(key, meta)
+
+    const normalizedAccount = {
+      ...account,
+      account_currency: currency,
+      money_scale: moneyScale,
+      money_normalized: true,
+      balance: normalizeForAccount(account.balance, meta),
+      equity: normalizeForAccount(account.equity, meta),
+      margin: normalizeForAccount(account.margin, meta),
+      free_margin: normalizeForAccount(account.free_margin, meta),
+      total_closed_pnl: normalizeForAccount(account.total_closed_pnl, meta),
+      peak_drawdown_amount: normalizeForAccount(account.peak_drawdown_amount, meta),
+      open_trades: (account.open_trades || []).map((trade) => ({
+        ...trade,
+        account_currency: currency,
+        money_scale: moneyScale,
+        money_normalized: true,
+        profit: normalizeForAccount(trade.profit, meta),
+      })),
+      daily_history: (account.daily_history || []).map((row) => ({
+        ...row,
+        account_currency: currency,
+        money_scale: moneyScale,
+        money_normalized: true,
+        daily_profit: normalizeForAccount(row.daily_profit, meta),
+      })),
+    }
+
+    // Rebate is paid in USD per lot; do not money-scale rebate_total or daily_rebate.
+    return normalizedAccount
+  })
+
+  const fallbackMeta = { currency: 'USD', moneyScale: 1 }
+  const equitySnapshots = (payload.equity_snapshots || []).map((snapshot) => {
+    const accountKey = String(snapshot.account_number || '')
+    const account = accountMeta.get(accountKey)
+    const currency = normalizeAccountCurrency(snapshot.account_currency) || account?.currency || fallbackMeta.currency
+    const moneyScale = accountMoneyScale({ account_currency: currency, money_scale: snapshot.money_scale ?? account?.moneyScale })
+    const meta = { currency, moneyScale }
+    return {
+      ...snapshot,
+      account_currency: currency,
+      money_scale: moneyScale,
+      money_normalized: true,
+      balance: normalizeForAccount(snapshot.balance, meta),
+      equity: normalizeForAccount(snapshot.equity, meta),
+      floating: normalizeForAccount(snapshot.floating, meta),
+    }
+  })
+
+  const totalEquity = accounts.reduce((sum, account) => sum + Number(account.equity || 0), 0)
+  const totalFloatingProfit = accounts.reduce(
+    (sum, account) => sum + (account.open_trades || []).reduce((tradeSum, trade) => tradeSum + Number(trade.profit || 0), 0),
+    0,
+  )
+
+  return {
+    ...payload,
+    accounts,
+    equity_snapshots: equitySnapshots,
+    summary: {
+      ...(payload.summary || {}),
+      total_equity: totalEquity,
+      total_floating_profit: totalFloatingProfit,
+      total_accounts: accounts.length,
+      total_open_trades: accounts.reduce((sum, account) => sum + Number(account.open_positions || (account.open_trades || []).length || 0), 0),
+    },
+  }
 }
 
 const PERIOD_OPTIONS = [
@@ -3416,7 +3519,7 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
           <div>
             <div className="sec-lbl">MT5 Reporter</div>
             <CardTitle className="sec-title">Connect terminals without Python</CardTitle>
-            <CardDescription className="sec-sub">Reporter v1.04 backfills up to 365 days of MT5 closed-deal history. No Python collector needed on the VPS.</CardDescription>
+            <CardDescription className="sec-sub">Reporter v1.05 backfills up to 365 days of MT5 closed-deal history, including account currency scale for USC accounts. No Python collector needed on the VPS.</CardDescription>
           </div>
           <Badge className="chip cb">MQL5 WebRequest</Badge>
         </CardHeader>
@@ -3689,7 +3792,7 @@ export default function App() {
       if (response.status === 401) { setUser(null); setData(null); return }
       if (!response.ok) throw new Error(`Dashboard API ${response.status}`)
       const result = await response.json()
-      setData(result)
+      setData(normalizeDashboardPayload(result))
       setLastUpdate(new Date())
       setError(null)
     } catch (err) {

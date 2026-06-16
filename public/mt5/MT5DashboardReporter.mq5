@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.04"
+#property version   "1.05"
 #property description "Posts MT5 account, open-position, and closed-deal snapshots to the Forex EA dashboard."
 
 input string DashboardEndpoint = "http://161.118.245.238:3000/api/mt5/update";
@@ -10,6 +10,7 @@ input bool   IncludeDailyHistory = true;
 input int    HistoryLookbackDays = 365;
 input int    HistoryPushIntervalMinutes = 60;
 input double RebatePerLotUsd = 10.0;
+input string AccountCurrencyOverride = "";
 input bool   EnableReporter = true;
 
 datetime last_push = 0;
@@ -35,6 +36,26 @@ string JsonEscape(string value)
    StringReplace(value, "\r", "\\r");
    StringReplace(value, "\n", "\\n");
    return value;
+}
+
+string NormalizeAccountCurrency(string value)
+{
+   string currency = value;
+   StringTrimLeft(currency);
+   StringTrimRight(currency);
+   StringToUpper(currency);
+   if(currency == "")
+      currency = "USD";
+   if(StringFind(currency, "USC") >= 0 || StringFind(currency, "CENT") >= 0)
+      return "USC";
+   return currency;
+}
+
+double MoneyScaleForCurrency(string currency)
+{
+   if(NormalizeAccountCurrency(currency) == "USC")
+      return 100.0;
+   return 1.0;
 }
 
 string PositionTypeName(long type)
@@ -247,6 +268,11 @@ string BuildPayload(bool include_history)
 {
    string account_number = IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN));
    string broker = AccountInfoString(ACCOUNT_COMPANY);
+   string account_currency = AccountCurrencyOverride;
+   if(account_currency == "")
+      account_currency = AccountInfoString(ACCOUNT_CURRENCY);
+   account_currency = NormalizeAccountCurrency(account_currency);
+   double money_scale = MoneyScaleForCurrency(account_currency);
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double margin = AccountInfoDouble(ACCOUNT_MARGIN);
@@ -306,6 +332,8 @@ string BuildPayload(bool include_history)
    string payload = "{";
    payload += "\"account_number\":\"" + JsonEscape(account_number) + "\",";
    payload += "\"broker\":\"" + JsonEscape(broker) + "\",";
+   payload += "\"account_currency\":\"" + JsonEscape(account_currency) + "\",";
+   payload += "\"money_scale\":" + DoubleToString(money_scale, 2) + ",";
    payload += "\"balance\":" + DoubleToString(balance, 2) + ",";
    payload += "\"equity\":" + DoubleToString(equity, 2) + ",";
    payload += "\"margin\":" + DoubleToString(margin, 2) + ",";

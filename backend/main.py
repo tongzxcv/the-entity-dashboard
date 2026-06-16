@@ -239,14 +239,26 @@ def init_db():
     except: pass
     try: cursor.execute('ALTER TABLE accounts ADD COLUMN peak_drawdown_percent REAL DEFAULT 0')
     except: pass
+    try: cursor.execute('ALTER TABLE accounts ADD COLUMN account_currency TEXT DEFAULT "USD"')
+    except: pass
+    try: cursor.execute('ALTER TABLE accounts ADD COLUMN money_scale REAL DEFAULT 1')
+    except: pass
     cursor.execute('''CREATE TABLE IF NOT EXISTS open_trades (id INTEGER PRIMARY KEY AUTOINCREMENT, account_number TEXT NOT NULL, ticket INTEGER UNIQUE NOT NULL, symbol TEXT, trade_type TEXT, lots REAL, open_price REAL, current_price REAL, profit REAL, last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_number) REFERENCES accounts(account_number))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS daily_history (id INTEGER PRIMARY KEY AUTOINCREMENT, account_number TEXT NOT NULL, date TEXT NOT NULL, daily_profit REAL, daily_trades INTEGER, daily_lots REAL DEFAULT 0, last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(account_number, date), FOREIGN KEY (account_number) REFERENCES accounts(account_number))''')
     try: cursor.execute('ALTER TABLE daily_history ADD COLUMN daily_lots REAL DEFAULT 0')
     except: pass
     try: cursor.execute('ALTER TABLE daily_history ADD COLUMN daily_rebate REAL DEFAULT 0')
     except: pass
+    try: cursor.execute('ALTER TABLE daily_history ADD COLUMN account_currency TEXT DEFAULT "USD"')
+    except: pass
+    try: cursor.execute('ALTER TABLE daily_history ADD COLUMN money_scale REAL DEFAULT 1')
+    except: pass
     cursor.execute('''CREATE TABLE IF NOT EXISTS equity_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, account_number TEXT NOT NULL, bucket_ts TEXT NOT NULL, balance REAL, equity REAL, floating REAL, drawdown_percent REAL DEFAULT 0, open_positions INTEGER DEFAULT 0, last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(account_number, bucket_ts), FOREIGN KEY (account_number) REFERENCES accounts(account_number))''')
     try: cursor.execute('ALTER TABLE equity_snapshots ADD COLUMN drawdown_percent REAL DEFAULT 0')
+    except: pass
+    try: cursor.execute('ALTER TABLE equity_snapshots ADD COLUMN account_currency TEXT DEFAULT "USD"')
+    except: pass
+    try: cursor.execute('ALTER TABLE equity_snapshots ADD COLUMN money_scale REAL DEFAULT 1')
     except: pass
     cursor.execute('''CREATE INDEX IF NOT EXISTS idx_equity_snapshots_bucket ON equity_snapshots(bucket_ts)''')
     conn.commit(); conn.close()
@@ -265,21 +277,48 @@ def valid_history_date(value) -> str | None:
         return None
 
 
+def normalize_account_currency(value) -> str:
+    currency = str(value or "USD").strip().upper()
+    if not currency:
+        return "USD"
+    if "USC" in currency or "CENT" in currency:
+        return "USC"
+    return currency
+
+
+def default_money_scale(account_currency: str) -> float:
+    return 100.0 if normalize_account_currency(account_currency) == "USC" else 1.0
+
+
+def parse_money_scale(value, account_currency: str) -> float:
+    try:
+        scale = float(value)
+        if scale > 0:
+            return scale
+    except (TypeError, ValueError):
+        pass
+    return default_money_scale(account_currency)
+
+
 def store_equity_snapshot(cursor, data, bucket_ts: str, open_positions: int):
     balance = float(data.get('balance', 0) or 0)
     equity = float(data.get('equity', 0) or 0)
     drawdown_percent = float(data.get('drawdown_percent', 0) or 0)
+    account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
+    money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
     cursor.execute(
-        '''INSERT INTO equity_snapshots (account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions, last_update)
-           VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        '''INSERT INTO equity_snapshots (account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions, account_currency, money_scale, last_update)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
            ON CONFLICT(account_number, bucket_ts) DO UPDATE SET
                balance = excluded.balance,
                equity = excluded.equity,
                floating = excluded.floating,
                drawdown_percent = excluded.drawdown_percent,
                open_positions = excluded.open_positions,
+               account_currency = excluded.account_currency,
+               money_scale = excluded.money_scale,
                last_update = CURRENT_TIMESTAMP''',
-        (data['account_number'], bucket_ts, balance, equity, equity - balance, drawdown_percent, open_positions)
+        (data['account_number'], bucket_ts, balance, equity, equity - balance, drawdown_percent, open_positions, account_currency, money_scale)
     )
 
 async def monitor_api_keys():
@@ -413,9 +452,11 @@ async def update_mt5_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
+        account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
+        money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
         cursor.execute(
-            '''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, last_update)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            '''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                ON CONFLICT(account_number) DO UPDATE SET
                    broker = excluded.broker,
                    balance = excluded.balance,
@@ -431,12 +472,14 @@ async def update_mt5_data(request: Request):
                    rebate_rate = excluded.rebate_rate,
                    peak_drawdown_amount = MAX(COALESCE(accounts.peak_drawdown_amount, 0), excluded.peak_drawdown_amount),
                    peak_drawdown_percent = MAX(COALESCE(accounts.peak_drawdown_percent, 0), excluded.peak_drawdown_percent),
+                   account_currency = excluded.account_currency,
+                   money_scale = excluded.money_scale,
                    last_update = CURRENT_TIMESTAMP''',
             (data['account_number'], data.get('broker',''), data['balance'], data['equity'],
              data.get('margin', 0), data.get('free_margin', 0), data.get('drawdown_percent', 0),
              data.get('open_positions', 0), data.get('total_closed_pnl'),
              data.get('total_closed_trades'), data.get('total_closed_lots'), rebate_total, rebate_rate,
-             incoming_peak_amount, incoming_peak_percent)
+             incoming_peak_amount, incoming_peak_percent, account_currency, money_scale)
         )
         store_equity_snapshot(cursor, data, bucket_ts, int(data.get('open_positions', 0) or 0))
         # บันทึก open_trades ถ้ามีส่งมา
@@ -455,17 +498,18 @@ async def update_mt5_data(request: Request):
             if not history_date:
                 continue
             cursor.execute(
-                '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, last_update)
-                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
+                '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, account_currency, money_scale, last_update)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
                 (data['account_number'], history_date, float(row.get('daily_profit', 0) or 0),
                  int(row.get('daily_trades', 0) or 0), float(row.get('daily_lots', 0) or 0),
-                 float(row.get('daily_rebate', (float(row.get('daily_lots', 0) or 0) * rebate_rate)) or 0))
+                 float(row.get('daily_rebate', (float(row.get('daily_lots', 0) or 0) * rebate_rate)) or 0),
+                 account_currency, money_scale)
             )
         if not is_weekend:
             cursor.execute(
-                '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, last_update)
-                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
-                (data['account_number'], target_date, data.get('today_pnl', 0), data.get('today_trades', 0), data.get('today_lots', 0), data.get('today_rebate', float(data.get('today_lots', 0) or 0) * rebate_rate))
+                '''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, account_currency, money_scale, last_update)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
+                (data['account_number'], target_date, data.get('today_pnl', 0), data.get('today_trades', 0), data.get('today_lots', 0), data.get('today_rebate', float(data.get('today_lots', 0) or 0) * rebate_rate), account_currency, money_scale)
             )
         conn.commit(); conn.close()
         return {"status": "success"}
@@ -487,8 +531,10 @@ async def update_data(request: Request):
         incoming_peak_percent = float(data.get('peak_drawdown_percent', data.get('drawdown_percent', 0)) or 0)
         rebate_rate = float(data.get('rebate_rate', data.get('rebate_per_lot', 10)) or 0)
         rebate_total = float(data.get('rebate_total', data.get('total_rebate', data.get('rebate', (float(data.get('total_closed_lots', 0) or 0) * rebate_rate)))) or 0)
-        cursor.execute('''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, last_update)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        account_currency = normalize_account_currency(data.get('account_currency', data.get('currency', data.get('accountCurrency'))))
+        money_scale = parse_money_scale(data.get('money_scale', data.get('moneyScale')), account_currency)
+        cursor.execute('''INSERT INTO accounts (account_number, broker, balance, equity, margin, free_margin, drawdown_percent, open_positions, total_closed_pnl, total_closed_trades, total_closed_lots, rebate_total, rebate_rate, peak_drawdown_amount, peak_drawdown_percent, account_currency, money_scale, last_update)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                           ON CONFLICT(account_number) DO UPDATE SET
                               broker = excluded.broker,
                               balance = excluded.balance,
@@ -504,11 +550,13 @@ async def update_data(request: Request):
                               rebate_rate = excluded.rebate_rate,
                               peak_drawdown_amount = MAX(COALESCE(accounts.peak_drawdown_amount, 0), excluded.peak_drawdown_amount),
                               peak_drawdown_percent = MAX(COALESCE(accounts.peak_drawdown_percent, 0), excluded.peak_drawdown_percent),
-                              last_update = CURRENT_TIMESTAMP''', (data['account_number'], data['broker'], data['balance'], data['equity'], data['margin'], data['free_margin'], data['drawdown_percent'], len(data.get('open_trades', [])), data.get('total_closed_pnl'), data.get('total_closed_trades'), data.get('total_closed_lots'), rebate_total, rebate_rate, incoming_peak_amount, incoming_peak_percent))
+                              account_currency = excluded.account_currency,
+                              money_scale = excluded.money_scale,
+                              last_update = CURRENT_TIMESTAMP''', (data['account_number'], data['broker'], data['balance'], data['equity'], data['margin'], data['free_margin'], data['drawdown_percent'], len(data.get('open_trades', [])), data.get('total_closed_pnl'), data.get('total_closed_trades'), data.get('total_closed_lots'), rebate_total, rebate_rate, incoming_peak_amount, incoming_peak_percent, account_currency, money_scale))
         store_equity_snapshot(cursor, data, bucket_ts, len(data.get('open_trades', [])))
         cursor.execute('DELETE FROM open_trades WHERE account_number = ?', (data['account_number'],))
         for trade in data.get('open_trades', []): cursor.execute('''INSERT OR REPLACE INTO open_trades (account_number, ticket, symbol, trade_type, lots, open_price, current_price, profit, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], str(trade['ticket']), trade['symbol'], trade['trade_type'], float(trade['lots']), trade['open_price'], trade['current_price'], trade['profit']))
-        if not is_weekend: cursor.execute('''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, last_update) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], target_date, data.get('daily_profit', 0), data.get('daily_trades', 0), data.get('daily_lots', data.get('today_lots', 0)), data.get('daily_rebate', data.get('today_rebate', float(data.get('daily_lots', data.get('today_lots', 0)) or 0) * rebate_rate))))
+        if not is_weekend: cursor.execute('''INSERT OR REPLACE INTO daily_history (account_number, date, daily_profit, daily_trades, daily_lots, daily_rebate, account_currency, money_scale, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', (data['account_number'], target_date, data.get('daily_profit', 0), data.get('daily_trades', 0), data.get('daily_lots', data.get('today_lots', 0)), data.get('daily_rebate', data.get('today_rebate', float(data.get('daily_lots', data.get('today_lots', 0)) or 0) * rebate_rate)), account_currency, money_scale))
         conn.commit(); conn.close(); return {"status": "success"}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -519,12 +567,26 @@ async def get_dashboard(request: Request):
     cursor.execute('SELECT * FROM accounts ORDER BY last_update DESC'); accounts = [dict(row) for row in cursor.fetchall()]
     cursor.execute('SELECT * FROM open_trades ORDER BY last_update DESC'); trades = [dict(row) for row in cursor.fetchall()]
     cursor.execute('SELECT * FROM daily_history ORDER BY date DESC'); history_rows = [dict(row) for row in cursor.fetchall()]
-    cursor.execute('SELECT * FROM (SELECT account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions FROM equity_snapshots ORDER BY bucket_ts DESC LIMIT 10000) ORDER BY bucket_ts ASC'); equity_snapshots = [dict(row) for row in cursor.fetchall()]
+    cursor.execute('SELECT * FROM (SELECT account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions, account_currency, money_scale FROM equity_snapshots ORDER BY bucket_ts DESC LIMIT 10000) ORDER BY bucket_ts ASC'); equity_snapshots = [dict(row) for row in cursor.fetchall()]
     conn.close(); trades_by_account = {}; history_by_account = {}
     for trade in trades: trades_by_account.setdefault(trade['account_number'], []).append(trade)
     for row in history_rows: history_by_account.setdefault(row['account_number'], []).append(row)
     for acc in accounts: acc['open_trades'] = trades_by_account.get(acc['account_number'], []); acc['daily_history'] = history_by_account.get(acc['account_number'], [])
-    payload = { "accounts": accounts, "equity_snapshots": equity_snapshots, "quotas": QUOTA_DATA, "summary": { "total_equity": sum(acc.get('equity', 0) for acc in accounts), "total_floating_profit": sum(trade.get('profit', 0) for trade in trades), "total_accounts": len(accounts), "total_open_trades": len(trades) } }
+    scale_by_account = {
+        str(acc.get("account_number")): parse_money_scale(acc.get("money_scale"), acc.get("account_currency"))
+        for acc in accounts
+    }
+    payload = {
+        "accounts": accounts,
+        "equity_snapshots": equity_snapshots,
+        "quotas": QUOTA_DATA,
+        "summary": {
+            "total_equity": sum(float(acc.get('equity', 0) or 0) / scale_by_account.get(str(acc.get("account_number")), 1.0) for acc in accounts),
+            "total_floating_profit": sum(float(trade.get('profit', 0) or 0) / scale_by_account.get(str(trade.get("account_number")), 1.0) for trade in trades),
+            "total_accounts": len(accounts),
+            "total_open_trades": len(trades)
+        }
+    }
     return sanitize_demo_dashboard(payload) if user.get("role") == "demo" else payload
 
 
