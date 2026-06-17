@@ -133,6 +133,24 @@ Suspended response:
 - Demo users cannot see registry, audit, Reporter, System Health, or admin actions.
 - HMAC request signing is documented as a later hardening step if replay protection is required beyond bearer tokens.
 
+## Production E2E Check
+
+Run this after deploying the license gate or changing Account Registry behavior:
+
+```powershell
+$env:QA_ADMIN_PASSWORD="<admin password>"
+$env:EA_LICENSE_API_TOKEN="<agent token>"
+npm run qa:license-gate-production
+```
+
+The script uses a synthetic QA account (`999000001` on `QA-License-Server`) so it does not alter live portfolio accounts. It verifies:
+
+- missing and invalid tokens are rejected
+- unregistered accounts return `REVIEW`
+- `APPROVED`, `PAUSED_NEW_ENTRIES`, `SUSPENDED`, `LIQUIDATE_ONLY`, and expiry-derived `EXPIRED` decisions
+- status changes and license checks are present in account audit history
+- the QA account is reset to `REVIEW` at the end
+
 ## CSV Import Guide
 
 Required columns:
