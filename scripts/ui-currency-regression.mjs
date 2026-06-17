@@ -27,6 +27,7 @@ const checks = [
   ['frontend normalizes dashboard payload', files.app.includes('function normalizeDashboardPayload')],
   ['frontend applies normalized payload on fetch', files.app.includes('setData(normalizeDashboardPayload(result))')],
   ['frontend can display USC accounts with cent symbol', files.app.includes("const moneySymbol = (context) => accountCurrency(context) === 'USC' ? '¢' : '$'")],
+  ['frontend accountCurrency accepts null money context', files.app.includes("const broker = String(account?.broker || '').toLowerCase()") && files.app.includes("const number = String(account?.account_number || '')")],
   ['frontend restores MT5 cent display amount for normalized USC accounts', files.app.includes('return context.money_normalized ? amount * accountMoneyScale(context) : amount')],
   ['frontend carries currency metadata into daily history rows', files.app.includes('account_currency: account.account_currency') && files.app.includes('money_normalized: account.money_normalized')],
   ['frontend documents rebate no-scale rule', files.app.includes('Rebate is paid in USD per lot; do not money-scale')],

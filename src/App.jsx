@@ -160,8 +160,8 @@ function getAge(account) {
 function accountCurrency(account) {
   const explicit = normalizeAccountCurrency(account?.account_currency || account?.currency || account?.accountCurrency)
   if (explicit) return explicit
-  const broker = String(account.broker || '').toLowerCase()
-  const number = String(account.account_number || '')
+  const broker = String(account?.broker || '').toLowerCase()
+  const number = String(account?.account_number || '')
   if (broker.includes('cent') || number.includes('usc')) return 'USC'
   return 'USD'
 }
