@@ -7,9 +7,12 @@ const files = {
 }
 
 const checks = [
-  ['reporter version bumped', files.reporter.includes('#property version   "1.06"')],
+  ['reporter version bumped', files.reporter.includes('#property version   "1.07"')],
   ['reporter has currency override input', files.reporter.includes('AccountCurrencyOverride')],
   ['reporter has rebate lot multiplier input', files.reporter.includes('RebateLotMultiplier')],
+  ['reporter success logs are optional and off by default', files.reporter.includes('input bool   EnableStatusLogs = false') && files.reporter.includes('if(EnableStatusLogs)')],
+  ['reporter error logs are optional and on by default', files.reporter.includes('input bool   EnableErrorLogs = true') && files.reporter.includes('if(EnableErrorLogs)')],
+  ['reporter throttles retries even when posts fail', files.reporter.includes('last_push = TimeCurrent();\n   PostSnapshot();')],
   ['reporter auto-scales rebate lots by money scale', files.reporter.includes('EffectiveRebateLotMultiplier') && files.reporter.includes('1.0 / money_scale')],
   ['reporter emits account currency', files.reporter.includes('account_currency')],
   ['reporter emits money scale', files.reporter.includes('money_scale')],

@@ -3665,7 +3665,7 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
           <div>
             <div className="sec-lbl">MT5 Reporter</div>
             <CardTitle className="sec-title">Connect terminals without Python</CardTitle>
-            <CardDescription className="sec-sub">Reporter v1.05 backfills up to 365 days of MT5 closed-deal history, including account currency scale for USC accounts. No Python collector needed on the VPS.</CardDescription>
+            <CardDescription className="sec-sub">Reporter v1.07 backfills up to 365 days of MT5 closed-deal history, supports USC account scaling, and keeps routine MT5 Journal logs quiet by default.</CardDescription>
           </div>
           <Badge className="chip cb">MQL5 WebRequest</Badge>
         </CardHeader>
@@ -3718,7 +3718,7 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
             ['Place the EX5 file', 'Drop it into MT5 -> MQL5 -> Experts folder, then restart MT5.'],
             ['Enable WebRequest', "Tools -> Options -> Expert Advisors -> tick 'Allow WebRequest for listed URL' and add the allow-list URL above."],
             ['Attach to a chart', "Drag 'MT5DashboardReporter' EA onto any chart. Symbol does not matter."],
-            ['Set inputs', 'DashboardEndpoint = endpoint URL / DashboardApiKey = API key shown above / IncludeDailyHistory = true.'],
+            ['Set inputs', 'DashboardEndpoint = endpoint URL / DashboardApiKey = API key shown above / IncludeDailyHistory = true / EnableStatusLogs = false.'],
             ['Verify telemetry', 'Open Mission / Logs or MT5 Preview. You should see a fresh heartbeat within one sync cycle.'],
           ].map(([title, detail], index) => (
             <div className="setup-step" key={title}>
@@ -3740,6 +3740,7 @@ function ReporterPage({ accounts = [], lastUpdate = null, isAdmin = false }) {
             ['No data after install', 'Confirm Algo Trading is ON and the EA enabled icon appears on the chart.'],
             ['401 Unauthorized', 'API key mismatch. Copy DashboardApiKey again and restart the EA.'],
             ['Connection timeout', 'Firewall or VPS security list is blocking outbound HTTP from the MT5 terminal.'],
+            ['Journal messages are noisy', 'Keep EnableStatusLogs=false. Set EnableErrorLogs=false only when you intentionally want a silent reporter.'],
           ].map(([title, detail]) => (
             <div className="trouble-row" key={title}>
               <span>OK</span>

@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.06"
+#property version   "1.07"
 #property description "Posts MT5 account, open-position, and closed-deal snapshots to the Forex EA dashboard."
 
 input string DashboardEndpoint = "http://161.118.245.238:3000/api/mt5/update";
@@ -13,6 +13,8 @@ input double RebatePerLotUsd = 10.0;
 input double RebateLotMultiplier = 0.0;
 input string AccountCurrencyOverride = "";
 input bool   EnableReporter = true;
+input bool   EnableStatusLogs = false;
+input bool   EnableErrorLogs = true;
 
 datetime last_push = 0;
 datetime last_history_push = 0;
@@ -102,7 +104,8 @@ string BuildDailyHistoryJson(int lookback_days, double rebate_lot_multiplier)
    ResetLastError();
    if(!HistorySelect(from_time, now))
    {
-      PrintFormat("MT5DashboardReporter: HistorySelect backfill failed. last_error=%d", GetLastError());
+      if(EnableErrorLogs)
+         PrintFormat("MT5DashboardReporter: HistorySelect backfill failed. last_error=%d", GetLastError());
       return "[]";
    }
 
@@ -181,7 +184,8 @@ void GetTodayClosedStats(double &today_pnl, int &today_trades, double &today_lot
    ResetLastError();
    if(!HistorySelect(day_start, now))
    {
-      PrintFormat("MT5DashboardReporter: HistorySelect failed. last_error=%d", GetLastError());
+      if(EnableErrorLogs)
+         PrintFormat("MT5DashboardReporter: HistorySelect failed. last_error=%d", GetLastError());
       return;
    }
 
@@ -221,7 +225,8 @@ void GetClosedStats(datetime from_time, datetime to_time, double &closed_pnl, in
    ResetLastError();
    if(!HistorySelect(from_time, to_time))
    {
-      PrintFormat("MT5DashboardReporter: HistorySelect total failed. last_error=%d", GetLastError());
+      if(EnableErrorLogs)
+         PrintFormat("MT5DashboardReporter: HistorySelect total failed. last_error=%d", GetLastError());
       return;
    }
 
@@ -385,7 +390,8 @@ bool PostSnapshot()
 
    if(DashboardEndpoint == "" || DashboardApiKey == "")
    {
-      Print("MT5DashboardReporter: DashboardEndpoint and DashboardApiKey are required.");
+      if(EnableErrorLogs)
+         Print("MT5DashboardReporter: DashboardEndpoint and DashboardApiKey are required.");
       return false;
    }
 
@@ -405,13 +411,15 @@ bool PostSnapshot()
    int status = WebRequest("POST", DashboardEndpoint, headers, 10000, body, result, result_headers);
    if(status < 200 || status >= 300)
    {
-      PrintFormat("MT5DashboardReporter: POST failed. status=%d last_error=%d response=%s", status, GetLastError(), CharArrayToString(result));
+      if(EnableErrorLogs)
+         PrintFormat("MT5DashboardReporter: POST failed. status=%d last_error=%d response=%s", status, GetLastError(), CharArrayToString(result));
       return false;
    }
 
    if(include_history)
       last_history_push = TimeCurrent();
-   PrintFormat("MT5DashboardReporter: snapshot posted. status=%d account=%I64d positions=%d", status, AccountInfoInteger(ACCOUNT_LOGIN), PositionsTotal());
+   if(EnableStatusLogs)
+      PrintFormat("MT5DashboardReporter: snapshot posted. status=%d account=%I64d positions=%d", status, AccountInfoInteger(ACCOUNT_LOGIN), PositionsTotal());
    return true;
 }
 
@@ -419,6 +427,7 @@ int OnInit()
 {
    EventSetTimer(MathMax(5, PushIntervalSeconds));
    PostSnapshot();
+   last_push = TimeCurrent();
    return INIT_SUCCEEDED;
 }
 
@@ -432,15 +441,15 @@ void OnTimer()
    if(TimeCurrent() - last_push < PushIntervalSeconds)
       return;
 
-   if(PostSnapshot())
-      last_push = TimeCurrent();
+   last_push = TimeCurrent();
+   PostSnapshot();
 }
 
 void OnTick()
 {
    if(TimeCurrent() - last_push >= PushIntervalSeconds)
    {
-      if(PostSnapshot())
-         last_push = TimeCurrent();
+      last_push = TimeCurrent();
+      PostSnapshot();
    }
 }
