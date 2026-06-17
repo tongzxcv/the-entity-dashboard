@@ -16,6 +16,8 @@ import hashlib
 import hmac
 import time
 import re
+import csv
+import io
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -61,8 +63,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-Key"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "Authorization", "X-EA-Token"],
 )
 
 DB_PATH = Path("/app/data/forex_ea.db")
@@ -77,6 +79,74 @@ class AccountNameUpdate(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+ACCOUNT_STATUSES = {
+    "APPROVED",
+    "SUSPENDED",
+    "PAUSED_NEW_ENTRIES",
+    "LIQUIDATE_ONLY",
+    "EXPIRED",
+    "REVIEW",
+}
+
+
+class AccountRegistryPayload(BaseModel):
+    account_login: str
+    broker_name: str = ""
+    broker_server: str
+    account_type: str = ""
+    symbol: str = ""
+    ib_group: str = ""
+    referral_tag: str = ""
+    owner_name: str = ""
+    note: str = ""
+    allowed_eas: list[str] = []
+    allowed_version: str = ""
+    allowed_build_hash: str = ""
+    allowed_preset: str = ""
+    risk_profile: str = ""
+    status: str = "REVIEW"
+    reason: str = ""
+    expiry_date: str = ""
+
+
+class AccountRegistryUpdate(BaseModel):
+    broker_name: str | None = None
+    broker_server: str | None = None
+    account_type: str | None = None
+    symbol: str | None = None
+    ib_group: str | None = None
+    referral_tag: str | None = None
+    owner_name: str | None = None
+    note: str | None = None
+    allowed_eas: list[str] | None = None
+    allowed_version: str | None = None
+    allowed_build_hash: str | None = None
+    allowed_preset: str | None = None
+    risk_profile: str | None = None
+    expiry_date: str | None = None
+
+
+class AccountStatusChange(BaseModel):
+    status: str
+    reason: str
+
+
+class ImportAccountsPayload(BaseModel):
+    csv_text: str
+
+
+class LicenseCheckRequest(BaseModel):
+    account_login: str
+    broker_server: str
+    symbol: str = ""
+    ea_name: str = ""
+    ea_version: str = ""
+    magic: int | str | None = None
+    build_hash: str = ""
+    machine_id: str = ""
+    timestamp: str = ""
 
 def load_api_keys():
     raw_json = os.getenv("LLM_API_KEYS_JSON", "").strip()
@@ -152,6 +222,128 @@ def require_admin(request: Request):
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin required")
     return user
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()
+    return request.client.host if request.client else ""
+
+
+def hash_secret(value: str) -> str:
+    return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+
+
+def hash_identifier(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return hash_secret(text)[:16]
+
+
+def normalize_status(value: str) -> str:
+    status = str(value or "REVIEW").strip().upper()
+    if status not in ACCOUNT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid account status: {status}")
+    return status
+
+
+def json_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except json.JSONDecodeError:
+            pass
+        return [item.strip() for item in text.split(",") if item.strip()]
+    return []
+
+
+def registry_row_to_dict(row) -> dict:
+    item = dict(row)
+    item["allowed_eas"] = json_list(item.get("allowed_eas"))
+    item["license_check_count"] = int(item.get("license_check_count") or 0)
+    item["license_reject_count"] = int(item.get("license_reject_count") or 0)
+    return item
+
+
+def write_audit(cursor, request: Request, *, account_id=None, account_login="", broker_server="", actor="system", actor_role="system", action="", old_status=None, new_status=None, reason="", metadata=None):
+    cursor.execute(
+        """INSERT INTO account_audit_log
+           (account_id, account_login, broker_server, actor, actor_role, action, old_status, new_status, reason, ip, user_agent, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            account_id,
+            str(account_login or ""),
+            str(broker_server or ""),
+            str(actor or "system"),
+            str(actor_role or "system"),
+            str(action or ""),
+            old_status,
+            new_status,
+            str(reason or "")[:500],
+            client_ip(request),
+            request.headers.get("user-agent", "")[:500],
+            json.dumps(metadata or {}, separators=(",", ":")),
+            utc_now_iso(),
+        ),
+    )
+
+
+LICENSE_RATE_BUCKET: dict[str, list[float]] = {}
+
+
+def require_license_token(request: Request):
+    configured_env_token = os.getenv("EA_LICENSE_API_TOKEN", "").strip()
+    auth_header = request.headers.get("authorization", "")
+    provided = ""
+    if auth_header.lower().startswith("bearer "):
+        provided = auth_header.split(" ", 1)[1].strip()
+    if not provided:
+        provided = request.headers.get("x-ea-token", "").strip()
+    if not provided:
+        raise HTTPException(status_code=401, detail="Missing EA license token")
+
+    now = time.time()
+    bucket_key = f"{client_ip(request)}:{hash_secret(provided)[:12]}"
+    recent = [stamp for stamp in LICENSE_RATE_BUCKET.get(bucket_key, []) if now - stamp < 60]
+    if len(recent) >= int(os.getenv("EA_LICENSE_RATE_LIMIT_PER_MINUTE", "120")):
+        LICENSE_RATE_BUCKET[bucket_key] = recent
+        raise HTTPException(status_code=429, detail="License check rate limit exceeded")
+    recent.append(now)
+    LICENSE_RATE_BUCKET[bucket_key] = recent
+
+    token_hash = hash_secret(provided)
+    if configured_env_token and hmac.compare_digest(token_hash, hash_secret(configured_env_token)):
+        return {"name": "env-default", "token_hash": token_hash}
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT id, name, token_hash FROM ea_agent_tokens WHERE token_hash = ? AND status = 'ACTIVE'",
+        (token_hash,),
+    ).fetchone()
+    if row:
+        cursor.execute("UPDATE ea_agent_tokens SET last_used_at = ? WHERE id = ?", (utc_now_iso(), row["id"]))
+        conn.commit()
+        conn.close()
+        return dict(row)
+    conn.close()
+    raise HTTPException(status_code=401, detail="Invalid EA license token")
 
 
 def sanitize_demo_dashboard(payload: dict) -> dict:
@@ -267,6 +459,76 @@ def init_db():
     try: cursor.execute('ALTER TABLE equity_snapshots ADD COLUMN money_scale REAL DEFAULT 1')
     except: pass
     cursor.execute('''CREATE INDEX IF NOT EXISTS idx_equity_snapshots_bucket ON equity_snapshots(bucket_ts)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS account_registry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_login TEXT NOT NULL,
+        broker_name TEXT DEFAULT '',
+        broker_server TEXT NOT NULL,
+        account_type TEXT DEFAULT '',
+        symbol TEXT DEFAULT '',
+        ib_group TEXT DEFAULT '',
+        referral_tag TEXT DEFAULT '',
+        owner_name TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        allowed_eas TEXT DEFAULT '[]',
+        allowed_version TEXT DEFAULT '',
+        allowed_build_hash TEXT DEFAULT '',
+        allowed_preset TEXT DEFAULT '',
+        risk_profile TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'REVIEW',
+        reason TEXT DEFAULT '',
+        approved_by TEXT DEFAULT '',
+        approved_at TEXT DEFAULT '',
+        suspended_by TEXT DEFAULT '',
+        suspended_at TEXT DEFAULT '',
+        expiry_date TEXT DEFAULT '',
+        last_license_check_at TEXT DEFAULT '',
+        last_ea_heartbeat_at TEXT DEFAULT '',
+        last_ea_name TEXT DEFAULT '',
+        last_ea_version TEXT DEFAULT '',
+        last_symbol TEXT DEFAULT '',
+        last_machine_id_hash TEXT DEFAULT '',
+        last_check_result TEXT DEFAULT '',
+        license_check_count INTEGER DEFAULT 0,
+        license_reject_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(account_login, broker_server)
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS account_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER,
+        account_login TEXT DEFAULT '',
+        broker_server TEXT DEFAULT '',
+        actor TEXT DEFAULT '',
+        actor_role TEXT DEFAULT '',
+        action TEXT NOT NULL,
+        old_status TEXT,
+        new_status TEXT,
+        reason TEXT DEFAULT '',
+        ip TEXT DEFAULT '',
+        user_agent TEXT DEFAULT '',
+        metadata TEXT DEFAULT '{}',
+        created_at TEXT NOT NULL
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS ea_agent_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        created_at TEXT NOT NULL,
+        last_used_at TEXT DEFAULT ''
+    )''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_registry_status ON account_registry(status)''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_registry_login_server ON account_registry(account_login, broker_server)''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_audit_account ON account_audit_log(account_id, created_at)''')
+    env_license_token = os.getenv("EA_LICENSE_API_TOKEN", "").strip()
+    if env_license_token:
+        cursor.execute(
+            '''INSERT OR IGNORE INTO ea_agent_tokens (name, token_hash, status, created_at)
+               VALUES (?, ?, 'ACTIVE', ?)''',
+            ("env-default", hash_secret(env_license_token), utc_now_iso())
+        )
     conn.commit(); conn.close()
 
 
@@ -664,10 +926,26 @@ async def get_dashboard(request: Request):
     cursor.execute('SELECT * FROM open_trades ORDER BY last_update DESC'); trades = [dict(row) for row in cursor.fetchall()]
     cursor.execute('SELECT * FROM daily_history ORDER BY date DESC'); history_rows = [dict(row) for row in cursor.fetchall()]
     cursor.execute('SELECT * FROM (SELECT account_number, bucket_ts, balance, equity, floating, drawdown_percent, open_positions, account_currency, money_scale FROM equity_snapshots ORDER BY bucket_ts DESC LIMIT 10000) ORDER BY bucket_ts ASC'); equity_snapshots = [dict(row) for row in cursor.fetchall()]
+    registry_rows = cursor.execute('SELECT * FROM account_registry').fetchall()
+    registry_by_account = {str(row["account_login"]): registry_row_to_dict(row) for row in registry_rows}
     conn.close(); trades_by_account = {}; history_by_account = {}
     for trade in trades: trades_by_account.setdefault(trade['account_number'], []).append(trade)
     for row in history_rows: history_by_account.setdefault(row['account_number'], []).append(row)
-    for acc in accounts: acc['open_trades'] = trades_by_account.get(acc['account_number'], []); acc['daily_history'] = history_by_account.get(acc['account_number'], [])
+    for acc in accounts:
+        acc['open_trades'] = trades_by_account.get(acc['account_number'], [])
+        acc['daily_history'] = history_by_account.get(acc['account_number'], [])
+        registry = registry_by_account.get(str(acc.get('account_number')))
+        if registry:
+            acc['approval_status'] = registry.get('status')
+            acc['approval_reason'] = registry.get('reason')
+            acc['license_last_check_at'] = registry.get('last_license_check_at')
+            acc['license_last_result'] = registry.get('last_check_result')
+            acc['license_check_count'] = registry.get('license_check_count')
+            acc['allowed_eas'] = registry.get('allowed_eas')
+            acc['allowed_version'] = registry.get('allowed_version')
+            acc['allowed_preset'] = registry.get('allowed_preset')
+        else:
+            acc['approval_status'] = 'UNREGISTERED'
     scale_by_account = {
         str(acc.get("account_number")): parse_money_scale(acc.get("money_scale"), acc.get("account_currency"))
         for acc in accounts
@@ -684,6 +962,366 @@ async def get_dashboard(request: Request):
         }
     }
     return sanitize_demo_dashboard(payload) if user.get("role") == "demo" else payload
+
+
+def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) -> dict:
+    if not registry:
+        return {
+            "status": "REVIEW",
+            "allow_new_entries": False,
+            "allow_manage_existing": True,
+            "allow_close_existing": True,
+            "message": "account not registered: review required",
+            "check_interval_seconds": 30,
+        }
+
+    now = datetime.now(timezone.utc).date()
+    status = normalize_status(registry.get("status"))
+    expiry = str(registry.get("expiry_date") or "").strip()
+    if expiry:
+        try:
+            if datetime.strptime(expiry, "%Y-%m-%d").date() < now:
+                status = "EXPIRED"
+        except ValueError:
+            pass
+
+    allowed_eas = json_list(registry.get("allowed_eas"))
+    allowed_version = str(registry.get("allowed_version") or "").strip()
+    allowed_hash = str(registry.get("allowed_build_hash") or "").strip()
+    allowed_symbol = str(registry.get("symbol") or "").strip()
+    mismatches = []
+    if allowed_eas and payload.ea_name and payload.ea_name not in allowed_eas:
+        mismatches.append("ea_name")
+    if allowed_version and payload.ea_version and payload.ea_version != allowed_version:
+        mismatches.append("ea_version")
+    if allowed_hash and payload.build_hash and payload.build_hash != allowed_hash:
+        mismatches.append("build_hash")
+    if allowed_symbol and payload.symbol and payload.symbol != allowed_symbol:
+        mismatches.append("symbol")
+
+    if mismatches:
+        return {
+            "status": "REVIEW",
+            "allow_new_entries": False,
+            "allow_manage_existing": True,
+            "allow_close_existing": True,
+            "message": f"license mismatch: {', '.join(mismatches)}",
+            "check_interval_seconds": 30,
+        }
+
+    decisions = {
+        "APPROVED": (True, True, True, 60, "approved"),
+        "PAUSED_NEW_ENTRIES": (False, True, True, 30, "new entries paused by admin"),
+        "SUSPENDED": (False, True, True, 30, f"account suspended by admin: {registry.get('reason') or 'no reason provided'}"),
+        "LIQUIDATE_ONLY": (False, False, True, 30, "liquidate only: close or reduce exposure"),
+        "EXPIRED": (False, True, True, 30, "account approval expired"),
+        "REVIEW": (False, True, True, 30, "account pending review"),
+    }
+    allow_new, allow_manage, allow_close, interval, message = decisions.get(status, decisions["REVIEW"])
+    return {
+        "status": status,
+        "allow_new_entries": allow_new,
+        "allow_manage_existing": allow_manage,
+        "allow_close_existing": allow_close,
+        "message": message,
+        "check_interval_seconds": interval,
+    }
+
+
+@app.post("/api/ea/license/check")
+async def check_ea_license(payload: LicenseCheckRequest, request: Request):
+    token_info = require_license_token(request)
+    account_login = str(payload.account_login or "").strip()
+    broker_server = str(payload.broker_server or "").strip()
+    if not account_login or not broker_server:
+        raise HTTPException(status_code=400, detail="account_login and broker_server are required")
+
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT * FROM account_registry WHERE account_login = ? AND broker_server = ?",
+        (account_login, broker_server),
+    ).fetchone()
+    registry = registry_row_to_dict(row) if row else None
+    decision = build_license_decision(registry, payload)
+    rejected = not decision["allow_new_entries"]
+    now = utc_now_iso()
+
+    if registry:
+        cursor.execute(
+            """UPDATE account_registry SET
+                 last_license_check_at = ?,
+                 last_ea_heartbeat_at = ?,
+                 last_ea_name = ?,
+                 last_ea_version = ?,
+                 last_symbol = ?,
+                 last_machine_id_hash = ?,
+                 last_check_result = ?,
+                 license_check_count = COALESCE(license_check_count, 0) + 1,
+                 license_reject_count = COALESCE(license_reject_count, 0) + ?,
+                 updated_at = ?
+               WHERE id = ?""",
+            (
+                now,
+                now,
+                payload.ea_name[:120],
+                payload.ea_version[:120],
+                payload.symbol[:80],
+                hash_identifier(payload.machine_id),
+                decision["message"][:250],
+                1 if rejected else 0,
+                now,
+                registry["id"],
+            ),
+        )
+        write_audit(
+            cursor,
+            request,
+            account_id=registry["id"],
+            account_login=account_login,
+            broker_server=broker_server,
+            actor=token_info.get("name", "ea-agent"),
+            actor_role="ea_agent",
+            action="LICENSE_CHECK",
+            old_status=registry.get("status"),
+            new_status=decision["status"],
+            reason=decision["message"],
+            metadata={
+                "ea_name": payload.ea_name,
+                "ea_version": payload.ea_version,
+                "symbol": payload.symbol,
+                "magic": str(payload.magic or ""),
+                "allowed": decision["allow_new_entries"],
+            },
+        )
+    else:
+        write_audit(
+            cursor,
+            request,
+            account_login=account_login,
+            broker_server=broker_server,
+            actor=token_info.get("name", "ea-agent"),
+            actor_role="ea_agent",
+            action="LICENSE_CHECK_UNREGISTERED",
+            new_status=decision["status"],
+            reason=decision["message"],
+            metadata={"ea_name": payload.ea_name, "ea_version": payload.ea_version, "symbol": payload.symbol},
+        )
+    conn.commit(); conn.close()
+    return decision
+
+
+@app.get("/api/admin/accounts")
+async def list_registry_accounts(request: Request, status: str = "", broker: str = "", server: str = "", ea: str = "", risk_profile: str = "", search: str = ""):
+    require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    rows = [registry_row_to_dict(row) for row in cursor.execute("SELECT * FROM account_registry ORDER BY updated_at DESC, id DESC").fetchall()]
+    audits = cursor.execute("SELECT * FROM account_audit_log ORDER BY created_at DESC, id DESC LIMIT 200").fetchall()
+    conn.close()
+
+    def matches(item):
+        if status and item.get("status") != status.upper():
+            return False
+        if broker and broker.lower() not in str(item.get("broker_name", "")).lower():
+            return False
+        if server and server.lower() not in str(item.get("broker_server", "")).lower():
+            return False
+        if ea and ea not in item.get("allowed_eas", []):
+            return False
+        if risk_profile and risk_profile.lower() not in str(item.get("risk_profile", "")).lower():
+            return False
+        if search:
+            haystack = " ".join(str(item.get(key, "")) for key in ("account_login", "broker_name", "broker_server", "owner_name", "note"))
+            if search.lower() not in haystack.lower():
+                return False
+        return True
+
+    return {"accounts": [item for item in rows if matches(item)], "audit": [dict(row) for row in audits]}
+
+
+@app.post("/api/admin/accounts")
+async def create_registry_account(payload: AccountRegistryPayload, request: Request):
+    user = require_admin(request)
+    status = normalize_status(payload.status)
+    account_login = payload.account_login.strip()
+    broker_server = payload.broker_server.strip()
+    if not account_login or not broker_server:
+        raise HTTPException(status_code=400, detail="account_login and broker_server are required")
+    now = utc_now_iso()
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """INSERT INTO account_registry
+               (account_login, broker_name, broker_server, account_type, symbol, ib_group, referral_tag, owner_name, note,
+                allowed_eas, allowed_version, allowed_build_hash, allowed_preset, risk_profile, status, reason,
+                approved_by, approved_at, suspended_by, suspended_at, expiry_date, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                account_login,
+                payload.broker_name.strip(),
+                broker_server,
+                payload.account_type.strip(),
+                payload.symbol.strip(),
+                payload.ib_group.strip(),
+                payload.referral_tag.strip(),
+                payload.owner_name.strip(),
+                payload.note.strip(),
+                json.dumps(payload.allowed_eas),
+                payload.allowed_version.strip(),
+                payload.allowed_build_hash.strip(),
+                payload.allowed_preset.strip(),
+                payload.risk_profile.strip(),
+                status,
+                payload.reason.strip(),
+                user["username"] if status == "APPROVED" else "",
+                now if status == "APPROVED" else "",
+                user["username"] if status == "SUSPENDED" else "",
+                now if status == "SUSPENDED" else "",
+                payload.expiry_date.strip(),
+                now,
+                now,
+            ),
+        )
+        account_id = cursor.lastrowid
+        write_audit(cursor, request, account_id=account_id, account_login=account_login, broker_server=broker_server, actor=user["username"], actor_role=user["role"], action="CREATE_ACCOUNT", new_status=status, reason=payload.reason)
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(status_code=409, detail="Account login and broker server already exists")
+    row = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    conn.close()
+    return registry_row_to_dict(row)
+
+
+@app.put("/api/admin/accounts/{account_id}")
+async def update_registry_account(account_id: int, payload: AccountRegistryUpdate, request: Request):
+    user = require_admin(request)
+    allowed_fields = {
+        "broker_name", "broker_server", "account_type", "symbol", "ib_group", "referral_tag", "owner_name",
+        "note", "allowed_eas", "allowed_version", "allowed_build_hash", "allowed_preset", "risk_profile", "expiry_date",
+    }
+    changes = {}
+    for key in allowed_fields:
+        value = getattr(payload, key)
+        if value is not None:
+            changes[key] = json.dumps(value) if key == "allowed_eas" else str(value).strip()
+    if not changes:
+        raise HTTPException(status_code=400, detail="No changes provided")
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    existing = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Account registry row not found")
+    changes["updated_at"] = utc_now_iso()
+    set_clause = ", ".join(f"{key} = ?" for key in changes.keys())
+    cursor.execute(f"UPDATE account_registry SET {set_clause} WHERE id = ?", (*changes.values(), account_id))
+    write_audit(cursor, request, account_id=account_id, account_login=existing["account_login"], broker_server=existing["broker_server"], actor=user["username"], actor_role=user["role"], action="UPDATE_ACCOUNT", old_status=existing["status"], new_status=existing["status"], reason="registry metadata updated", metadata={"fields": list(changes.keys())})
+    conn.commit()
+    row = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    conn.close()
+    return registry_row_to_dict(row)
+
+
+@app.post("/api/admin/accounts/{account_id}/status")
+async def change_registry_status(account_id: int, payload: AccountStatusChange, request: Request):
+    user = require_admin(request)
+    new_status = normalize_status(payload.status)
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=400, detail="Reason is required")
+    now = utc_now_iso()
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    existing = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Account registry row not found")
+    updates = {"status": new_status, "reason": reason, "updated_at": now}
+    if new_status == "APPROVED":
+        updates["approved_by"] = user["username"]
+        updates["approved_at"] = now
+    if new_status in {"SUSPENDED", "PAUSED_NEW_ENTRIES", "LIQUIDATE_ONLY", "EXPIRED", "REVIEW"}:
+        updates["suspended_by"] = user["username"] if new_status == "SUSPENDED" else existing["suspended_by"]
+        updates["suspended_at"] = now if new_status == "SUSPENDED" else existing["suspended_at"]
+    set_clause = ", ".join(f"{key} = ?" for key in updates.keys())
+    cursor.execute(f"UPDATE account_registry SET {set_clause} WHERE id = ?", (*updates.values(), account_id))
+    write_audit(cursor, request, account_id=account_id, account_login=existing["account_login"], broker_server=existing["broker_server"], actor=user["username"], actor_role=user["role"], action="STATUS_CHANGE", old_status=existing["status"], new_status=new_status, reason=reason)
+    conn.commit()
+    row = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    conn.close()
+    return registry_row_to_dict(row)
+
+
+@app.get("/api/admin/accounts/{account_id}/audit")
+async def get_account_audit(account_id: int, request: Request):
+    require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    rows = cursor.execute("SELECT * FROM account_audit_log WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT 300", (account_id,)).fetchall()
+    conn.close()
+    return {"audit": [dict(row) for row in rows]}
+
+
+@app.get("/api/admin/audit-log")
+async def get_audit_log(request: Request, limit: int = 300):
+    require_admin(request)
+    safe_limit = min(max(int(limit or 300), 1), 1000)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    rows = cursor.execute("SELECT * FROM account_audit_log ORDER BY created_at DESC, id DESC LIMIT ?", (safe_limit,)).fetchall()
+    conn.close()
+    return {"audit": [dict(row) for row in rows]}
+
+
+@app.post("/api/admin/accounts/import-csv")
+async def import_registry_accounts(payload: ImportAccountsPayload, request: Request):
+    user = require_admin(request)
+    reader = csv.DictReader(io.StringIO(payload.csv_text.strip()))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV header is required")
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    report = []
+    now = utc_now_iso()
+    for index, row in enumerate(reader, start=2):
+        account_login = str(row.get("account_login") or row.get("login") or row.get("account") or "").strip()
+        broker_server = str(row.get("broker_server") or row.get("server") or "").strip()
+        if not account_login or not broker_server:
+            report.append({"row": index, "status": "failed", "reason": "missing account_login or broker_server"})
+            continue
+        status = normalize_status(row.get("status") or "REVIEW")
+        allowed_eas = json_list(row.get("allowed_eas") or row.get("ea"))
+        try:
+            cursor.execute(
+                """INSERT INTO account_registry
+                   (account_login, broker_name, broker_server, account_type, symbol, ib_group, referral_tag, owner_name, note,
+                    allowed_eas, allowed_version, allowed_build_hash, allowed_preset, risk_profile, status, reason,
+                    expiry_date, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    account_login,
+                    str(row.get("broker_name") or row.get("broker") or "").strip(),
+                    broker_server,
+                    str(row.get("account_type") or "").strip(),
+                    str(row.get("symbol") or "").strip(),
+                    str(row.get("ib_group") or "").strip(),
+                    str(row.get("referral_tag") or "").strip(),
+                    str(row.get("owner_name") or row.get("client") or "").strip(),
+                    str(row.get("note") or "").strip(),
+                    json.dumps(allowed_eas),
+                    str(row.get("allowed_version") or "").strip(),
+                    str(row.get("allowed_build_hash") or "").strip(),
+                    str(row.get("allowed_preset") or "").strip(),
+                    str(row.get("risk_profile") or "").strip(),
+                    status,
+                    str(row.get("reason") or "CSV import").strip(),
+                    str(row.get("expiry_date") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+            account_id = cursor.lastrowid
+            write_audit(cursor, request, account_id=account_id, account_login=account_login, broker_server=broker_server, actor=user["username"], actor_role=user["role"], action="IMPORT_ACCOUNT", new_status=status, reason="CSV import")
+            report.append({"row": index, "status": "imported", "account_login": account_login})
+        except sqlite3.IntegrityError:
+            report.append({"row": index, "status": "failed", "account_login": account_login, "reason": "duplicate account_login + broker_server"})
+    conn.commit(); conn.close()
+    return {"report": report}
 
 
 @app.post("/api/accounts/{account_number}/name")

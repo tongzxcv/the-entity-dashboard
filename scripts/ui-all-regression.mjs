@@ -9,6 +9,7 @@ const checks = [
   ['ui symbols/preview', 'scripts/ui-symbols-preview-regression.mjs'],
   ['ui admin ops', 'scripts/ui-admin-ops-regression.mjs'],
   ['ui currency scale', 'scripts/ui-currency-regression.mjs'],
+  ['license gate', 'scripts/license-gate-regression.mjs'],
 ]
 
 const failures = []

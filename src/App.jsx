@@ -3867,6 +3867,349 @@ function LogsPage({ sysData, accounts = [], lastUpdate = null }) {
 }
 
 // โ”€โ”€ ROOT โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+const ACCOUNT_GATE_STATUSES = ['APPROVED', 'SUSPENDED', 'PAUSED_NEW_ENTRIES', 'LIQUIDATE_ONLY', 'EXPIRED', 'REVIEW']
+const ACCOUNT_GATE_EAS = ['SteadyFlow', 'JANUS', 'Hybrid']
+
+function statusBadgeClass(status) {
+  if (status === 'APPROVED') return 'blive'
+  if (status === 'SUSPENDED' || status === 'EXPIRED') return 'bsell'
+  if (status === 'PAUSED_NEW_ENTRIES' || status === 'LIQUIDATE_ONLY' || status === 'REVIEW') return 'bbuy'
+  return 'bmuted'
+}
+
+function AuditLogTable({ rows = [] }) {
+  if (!rows.length) return <div className="empty-card">No audit events yet.</div>
+  return (
+    <DataTableShell
+      kicker="Security"
+      title="Audit Log"
+      table={(
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Actor</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Reason</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell className="tm">{row.created_at}</TableCell>
+                <TableCell>{row.actor}<div className="ts">{row.actor_role}</div></TableCell>
+                <TableCell>{row.action}</TableCell>
+                <TableCell>{row.account_login}<div className="tm">{row.broker_server}</div></TableCell>
+                  <TableCell><span className="tm">{row.old_status || '-'}</span>{' -> '}<Badge className={`badge ${statusBadgeClass(row.new_status)}`}>{row.new_status || '-'}</Badge></TableCell>
+                <TableCell>{row.reason || '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      mobileRows={(
+        <div className="responsive-row-list">
+          {rows.map((row) => (
+            <Card className="responsive-row-card" key={row.id}>
+              <div className="responsive-row-head">
+                <div><div className="responsive-row-title">{row.action}</div><div className="responsive-row-sub">{row.created_at}</div></div>
+                <Badge className={`badge ${statusBadgeClass(row.new_status)}`}>{row.new_status || '-'}</Badge>
+              </div>
+              <CardContent className="responsive-row-body p-0">
+                <div><span>Account</span><b>{row.account_login || '-'}</b></div>
+                <div><span>Actor</span><b>{row.actor || '-'}</b></div>
+                <div><span>Reason</span><b>{row.reason || '-'}</b></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    />
+  )
+}
+
+function AdminAccountsPage() {
+  const initialForm = {
+    account_login: '',
+    broker_name: '',
+    broker_server: '',
+    account_type: 'live',
+    symbol: 'XAUUSD.c',
+    ib_group: '',
+    referral_tag: '',
+    owner_name: '',
+    note: '',
+    allowed_eas: ['SteadyFlow'],
+    allowed_version: '',
+    allowed_build_hash: '',
+    allowed_preset: '',
+    risk_profile: '',
+    status: 'REVIEW',
+    reason: 'Initial review',
+    expiry_date: '',
+  }
+  const [accounts, setAccounts] = useState([])
+  const [audit, setAudit] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [filters, setFilters] = useState({ status: 'all', search: '' })
+  const [form, setForm] = useState(initialForm)
+  const [statusTarget, setStatusTarget] = useState(null)
+  const [statusReason, setStatusReason] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importReport, setImportReport] = useState([])
+
+  const loadAccounts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filters.status !== 'all') params.set('status', filters.status)
+      if (filters.search.trim()) params.set('search', filters.search.trim())
+      const response = await fetch(`${API_URL}/api/admin/accounts?${params.toString()}`, { credentials: 'include' })
+      if (!response.ok) throw new Error(`Account registry API ${response.status}`)
+      const result = await response.json()
+      setAccounts(result.accounts || [])
+      setAudit(result.audit || [])
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [filters.status, filters.search])
+
+  useEffect(() => { loadAccounts() }, [loadAccounts])
+
+  const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  const toggleEa = (ea) => setForm((current) => ({
+    ...current,
+    allowed_eas: current.allowed_eas.includes(ea)
+      ? current.allowed_eas.filter((item) => item !== ea)
+      : [...current.allowed_eas, ea],
+  }))
+
+  const createAccount = async (event) => {
+    event.preventDefault()
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Create account API ${response.status}`)
+      setForm(initialForm)
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const openStatusDialog = (account, status) => {
+    setStatusTarget({ account, status })
+    setStatusReason(`${status.toLowerCase().replaceAll('_', ' ')} by admin`)
+  }
+
+  const changeStatus = async (event) => {
+    event.preventDefault()
+    if (!statusTarget) return
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/${statusTarget.account.id}/status`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: statusTarget.status, reason: statusReason }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Status API ${response.status}`)
+      setStatusTarget(null)
+      setStatusReason('')
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const importAccounts = async (event) => {
+    event.preventDefault()
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/import-csv`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv_text: importText }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Import API ${response.status}`)
+      setImportReport(result.report || [])
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return (
+    <>
+      {error ? <div className="app-notice danger">{error}</div> : null}
+      <Card className="sec">
+        <CardHeader className="sec-h">
+          <div>
+            <div className="sec-lbl">License Gate</div>
+            <CardTitle className="sec-title">Account Registry</CardTitle>
+            <CardDescription>Approve, suspend, pause, or review MT5 accounts without storing trade passwords.</CardDescription>
+          </div>
+          <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>Import CSV</Button>
+        </CardHeader>
+        <CardContent>
+          <form className="registry-form" onSubmit={createAccount}>
+            <Input placeholder="account_login" value={form.account_login} onChange={(event) => updateForm('account_login', event.target.value)} required />
+            <Input placeholder="broker_server" value={form.broker_server} onChange={(event) => updateForm('broker_server', event.target.value)} required />
+            <Input placeholder="broker_name" value={form.broker_name} onChange={(event) => updateForm('broker_name', event.target.value)} />
+            <Input placeholder="symbol" value={form.symbol} onChange={(event) => updateForm('symbol', event.target.value)} />
+            <DashboardSelect value={form.account_type} onValueChange={(value) => updateForm('account_type', value)} options={[{ value: 'cent', label: 'cent' }, { value: 'standard', label: 'standard' }, { value: 'demo', label: 'demo' }, { value: 'live', label: 'live' }]} />
+            <DashboardSelect value={form.status} onValueChange={(value) => updateForm('status', value)} options={ACCOUNT_GATE_STATUSES.map((status) => ({ value: status, label: status }))} />
+            <Input placeholder="owner/client note" value={form.owner_name} onChange={(event) => updateForm('owner_name', event.target.value)} />
+            <Input placeholder="risk profile / preset" value={form.risk_profile} onChange={(event) => updateForm('risk_profile', event.target.value)} />
+            <Input placeholder="allowed version" value={form.allowed_version} onChange={(event) => updateForm('allowed_version', event.target.value)} />
+            <Input placeholder="build hash" value={form.allowed_build_hash} onChange={(event) => updateForm('allowed_build_hash', event.target.value)} />
+            <Input placeholder="expiry_date YYYY-MM-DD" value={form.expiry_date} onChange={(event) => updateForm('expiry_date', event.target.value)} />
+            <Input placeholder="reason" value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} />
+            <div className="registry-ea-picks">
+              {ACCOUNT_GATE_EAS.map((ea) => (
+                <Button key={ea} type="button" variant={form.allowed_eas.includes(ea) ? 'default' : 'outline'} onClick={() => toggleEa(ea)}>{ea}</Button>
+              ))}
+            </div>
+            <Button type="submit">Add registry account</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="sec">
+        <CardHeader className="sec-h">
+          <div><div className="sec-lbl">Filters</div><CardTitle className="sec-title">Registered Accounts</CardTitle></div>
+          <div className="registry-toolbar">
+            <DashboardSelect value={filters.status} onValueChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: 'all', label: 'All status' }, ...ACCOUNT_GATE_STATUSES.map((status) => ({ value: status, label: status }))]} />
+            <Input placeholder="Search account/server/client" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DataTableShell
+            kicker="IB Accounts"
+            title={loading ? 'Loading registry...' : `${accounts.length} accounts`}
+            table={(
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Broker / Server</TableHead>
+                    <TableHead>EA / Version</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last check</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accounts.map((account) => (
+                    <TableRow key={account.id}>
+                      <TableCell><div className="tn">{account.account_login}</div><div className="ts">{account.owner_name || account.note || 'No owner note'}</div></TableCell>
+                      <TableCell><div>{account.broker_name || '-'}</div><div className="tm">{account.broker_server}</div></TableCell>
+                      <TableCell><div>{(account.allowed_eas || []).join(', ') || 'Any EA'}</div><div className="tm">{account.allowed_version || 'Any version'}</div></TableCell>
+                      <TableCell><Badge className={`badge ${statusBadgeClass(account.status)}`}>{account.status}</Badge></TableCell>
+                      <TableCell className="tm">{account.last_license_check_at || 'Never'}</TableCell>
+                      <TableCell>
+                        <div className="registry-actions">
+                          {ACCOUNT_GATE_STATUSES.map((status) => (
+                            <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{status.replace('PAUSED_NEW_ENTRIES', 'PAUSE').replace('LIQUIDATE_ONLY', 'LIQUIDATE')}</Button>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            mobileRows={(
+              <div className="responsive-row-list">
+                {accounts.map((account) => (
+                  <Card className="responsive-row-card" key={account.id}>
+                    <div className="responsive-row-head">
+                      <div><div className="responsive-row-title">{account.account_login}</div><div className="responsive-row-sub">{account.broker_server}</div></div>
+                      <Badge className={`badge ${statusBadgeClass(account.status)}`}>{account.status}</Badge>
+                    </div>
+                    <CardContent className="responsive-row-body p-0">
+                      <div><span>EA</span><b>{(account.allowed_eas || []).join(', ') || 'Any'}</b></div>
+                      <div><span>Last check</span><b>{account.last_license_check_at || 'Never'}</b></div>
+                      <div className="registry-actions mobile">{ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{status.split('_')[0]}</Button>)}</div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="sec">
+        <CardHeader className="sec-h"><div><div className="sec-lbl">Audit</div><CardTitle className="sec-title">Recent Registry Events</CardTitle></div></CardHeader>
+        <CardContent><AuditLogTable rows={audit.slice(0, 50)} /></CardContent>
+      </Card>
+
+      <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open) setStatusTarget(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Change account status</DialogTitle><DialogDescription>{statusTarget ? `${statusTarget.account.account_login} -> ${statusTarget.status}` : ''}</DialogDescription></DialogHeader>
+          <form onSubmit={changeStatus} className="dialog-form">
+            <Input value={statusReason} onChange={(event) => setStatusReason(event.target.value)} placeholder="Reason is required" required />
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button type="submit">Save status</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Import account registry CSV</DialogTitle><DialogDescription>Required columns: account_login, broker_server. Optional: broker_name, status, allowed_eas, symbol, account_type.</DialogDescription></DialogHeader>
+          <form onSubmit={importAccounts} className="dialog-form">
+            <textarea className="registry-textarea" value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="account_login,broker_server,broker_name,status,allowed_eas" rows={8} />
+            {importReport.length ? <div className="import-report">{importReport.slice(0, 8).map((row, index) => <div key={index}>{row.row}: {row.status} {row.reason || row.account_login || ''}</div>)}</div> : null}
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setImportOpen(false)}>Close</Button><Button type="submit">Import</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function AuditLogPage() {
+  const [rows, setRows] = useState([])
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    fetch(`${API_URL}/api/admin/audit-log`, { credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Audit API ${response.status}`)
+        return response.json()
+      })
+      .then((result) => { if (active) setRows(result.audit || []) })
+      .catch((err) => { if (active) setError(err.message) })
+    return () => { active = false }
+  }, [])
+  return (
+    <>
+      {error ? <div className="app-notice danger">{error}</div> : null}
+      <Card className="sec">
+        <CardHeader className="sec-h">
+          <div><div className="sec-lbl">Admin Security</div><CardTitle className="sec-title">Audit Log</CardTitle><CardDescription>Status changes, license checks, import events, and failed account checks.</CardDescription></div>
+          <Badge className="chip cd">{rows.length} events</Badge>
+        </CardHeader>
+        <CardContent><AuditLogTable rows={rows} /></CardContent>
+      </Card>
+    </>
+  )
+}
+
 export default function App() {
   const [page, setPage] = useState("overview")
   const [time, setTime] = useState(new Date())
@@ -4150,15 +4493,17 @@ export default function App() {
     { id:"mt5preview", label:"MT5 Preview",    icon:Ico.reporter  },
     { id:"history",  label:"History",         icon:Ico.trades    },
     ...(isAdmin ? [
+      { id:"accounts", label:"IB Accounts",     icon:Ico.lock      },
       { id:"reporter", label:"MT5 Reporter",    icon:Ico.reporter  },
       { id:"logs",     label:"System Health",   icon:Ico.logs      },
+      { id:"audit",    label:"Audit Log",       icon:Ico.logs      },
     ] : [])
   ]
 
   const PAGE_TITLES = {
     overview:"Overview", advisors:"Expert Advisors", symbols:"Symbols",
     trades:"Active Trades", mt5preview:"MT5 Preview", history:"History",
-    reporter:"MT5 Reporter", logs:"System Health",
+    accounts:"IB Accounts", reporter:"MT5 Reporter", logs:"System Health", audit:"Audit Log",
   }
 
   const showFilterBar = ['overview', 'advisors', 'trades', 'mt5preview'].includes(page)
@@ -4171,8 +4516,10 @@ export default function App() {
     : item.id === 'trades' ? 'Trades'
     : item.id === 'mt5preview' ? 'Preview'
     : item.id === 'history' ? 'Reports'
+    : item.id === 'accounts' ? 'Accounts'
     : item.id === 'reporter' ? 'Reporter'
     : item.id === 'logs' ? 'Health'
+    : item.id === 'audit' ? 'Audit'
     : item.label
 
   const PAGES = {
@@ -4182,8 +4529,10 @@ export default function App() {
     trades:   <TradesPage accounts={brokerScopedAccounts} isAdmin={isAdmin} lastUpdate={lastUpdate} />,
     mt5preview: <MT5PreviewPage accounts={brokerScopedAccounts} snapshots={data?.equity_snapshots || []} lastUpdate={lastUpdate} />,
     history:  <HistoryPage accounts={accounts} isAdmin={isAdmin} />,
+    accounts: <AdminAccountsPage />,
     reporter: <ReporterPage accounts={accounts} lastUpdate={lastUpdate} isAdmin={isAdmin} />,
-    logs:     <LogsPage sysData={sysData} accounts={accounts} lastUpdate={lastUpdate} />
+    logs:     <LogsPage sysData={sysData} accounts={accounts} lastUpdate={lastUpdate} />,
+    audit:    <AuditLogPage />
   }
 
   return (
