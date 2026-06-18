@@ -3867,13 +3867,14 @@ function LogsPage({ sysData, accounts = [], lastUpdate = null }) {
 }
 
 // โ”€โ”€ ROOT โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
-const ACCOUNT_GATE_STATUSES = ['APPROVED', 'SUSPENDED', 'PAUSED_NEW_ENTRIES', 'LIQUIDATE_ONLY', 'EXPIRED', 'REVIEW']
+const ACCOUNT_GATE_STATUSES = ['APPROVED', 'PAUSED', 'BLOCKED']
+const ACCOUNT_GATE_STATUS_LABELS = { APPROVED: 'Approve', PAUSED: 'Pause', BLOCKED: 'Block' }
 const ACCOUNT_GATE_EAS = ['SteadyFlow', 'JANUS', 'Hybrid']
 
 function statusBadgeClass(status) {
   if (status === 'APPROVED') return 'blive'
-  if (status === 'SUSPENDED' || status === 'EXPIRED') return 'bsell'
-  if (status === 'PAUSED_NEW_ENTRIES' || status === 'LIQUIDATE_ONLY' || status === 'REVIEW') return 'bbuy'
+  if (status === 'BLOCKED') return 'bsell'
+  if (status === 'PAUSED') return 'bbuy'
   return 'bmuted'
 }
 
@@ -3946,8 +3947,8 @@ function AdminAccountsPage() {
     allowed_build_hash: '',
     allowed_preset: '',
     risk_profile: '',
-    status: 'REVIEW',
-    reason: 'Initial review',
+    status: 'PAUSED',
+    reason: 'Initial pause',
     expiry_date: '',
   }
   const [accounts, setAccounts] = useState([])
@@ -4060,7 +4061,7 @@ function AdminAccountsPage() {
           <div>
             <div className="sec-lbl">License Gate</div>
             <CardTitle className="sec-title">Account Registry</CardTitle>
-            <CardDescription>Approve, suspend, pause, or review MT5 accounts without storing trade passwords.</CardDescription>
+            <CardDescription>Approve, pause, or block MT5 accounts without storing trade passwords.</CardDescription>
           </div>
           <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>Import CSV</Button>
         </CardHeader>
@@ -4123,7 +4124,7 @@ function AdminAccountsPage() {
                       <TableCell>
                         <div className="registry-actions">
                           {ACCOUNT_GATE_STATUSES.map((status) => (
-                            <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{status.replace('PAUSED_NEW_ENTRIES', 'PAUSE').replace('LIQUIDATE_ONLY', 'LIQUIDATE')}</Button>
+                            <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>
                           ))}
                         </div>
                       </TableCell>
@@ -4143,7 +4144,7 @@ function AdminAccountsPage() {
                     <CardContent className="responsive-row-body p-0">
                       <div><span>EA</span><b>{(account.allowed_eas || []).join(', ') || 'Any'}</b></div>
                       <div><span>Last check</span><b>{account.last_license_check_at || 'Never'}</b></div>
-                      <div className="registry-actions mobile">{ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{status.split('_')[0]}</Button>)}</div>
+                      <div className="registry-actions mobile">{ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>)}</div>
                     </CardContent>
                   </Card>
                 ))}

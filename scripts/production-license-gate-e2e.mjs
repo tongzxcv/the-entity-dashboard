@@ -23,7 +23,7 @@ const qaAccount = {
   allowed_build_hash: '',
   allowed_preset: 'QA',
   risk_profile: 'QA',
-  status: 'REVIEW',
+  status: 'PAUSED',
   reason: 'production license gate qa bootstrap',
   expiry_date: '',
 }
@@ -163,7 +163,7 @@ try {
     account_login: '999000002',
     machine_id: 'qa-production-license-gate-unregistered',
   })
-  check('unregistered account returns review', unregistered.status === 200 && unregistered.json.status === 'REVIEW', JSON.stringify(unregistered.json))
+  check('unregistered account returns blocked', unregistered.status === 200 && unregistered.json.status === 'BLOCKED', JSON.stringify(unregistered.json))
   check('unregistered account blocks new entries', unregistered.json.allow_new_entries === false, JSON.stringify(unregistered.json))
 
   const account = await upsertQaAccount(page)
@@ -177,27 +177,19 @@ try {
     allow_close_existing: true,
   })
 
-  await setStatus(page, account.id, 'PAUSED_NEW_ENTRIES', 'qa pause new entries')
+  await setStatus(page, account.id, 'PAUSED', 'qa pause new entries')
   await expectDecision(page, {
-    status: 'PAUSED_NEW_ENTRIES',
+    status: 'PAUSED',
     allow_new_entries: false,
     allow_manage_existing: true,
     allow_close_existing: true,
   })
 
-  await setStatus(page, account.id, 'SUSPENDED', 'qa suspend account')
+  await setStatus(page, account.id, 'BLOCKED', 'qa block account')
   await expectDecision(page, {
-    status: 'SUSPENDED',
+    status: 'BLOCKED',
     allow_new_entries: false,
     allow_manage_existing: true,
-    allow_close_existing: true,
-  })
-
-  await setStatus(page, account.id, 'LIQUIDATE_ONLY', 'qa liquidate only')
-  await expectDecision(page, {
-    status: 'LIQUIDATE_ONLY',
-    allow_new_entries: false,
-    allow_manage_existing: false,
     allow_close_existing: true,
   })
 
@@ -205,32 +197,31 @@ try {
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   await setExpiry(page, account.id, yesterday)
   await expectDecision(page, {
-    status: 'EXPIRED',
+    status: 'BLOCKED',
     allow_new_entries: false,
     allow_manage_existing: true,
     allow_close_existing: true,
   })
 
   await setExpiry(page, account.id, '')
-  await setStatus(page, account.id, 'REVIEW', 'qa complete reset to review')
-  const finalReview = await expectDecision(page, {
-    status: 'REVIEW',
+  await setStatus(page, account.id, 'PAUSED', 'qa complete reset to paused')
+  const finalPaused = await expectDecision(page, {
+    status: 'PAUSED',
     allow_new_entries: false,
     allow_manage_existing: true,
     allow_close_existing: true,
   })
-  check('review message returned', finalReview.message.includes('pending review'), JSON.stringify(finalReview))
+  check('paused message returned', finalPaused.message.includes('paused'), JSON.stringify(finalPaused))
 
   const audit = await apiJson(page, 'GET', `/api/admin/accounts/${account.id}/audit`)
   check('account audit readable', audit.status === 200, JSON.stringify(audit.json))
   const actions = (audit.json.audit || []).map((item) => `${item.action}:${item.new_status}`)
   for (const expectedAction of [
     'STATUS_CHANGE:APPROVED',
-    'STATUS_CHANGE:PAUSED_NEW_ENTRIES',
-    'STATUS_CHANGE:SUSPENDED',
-    'STATUS_CHANGE:LIQUIDATE_ONLY',
+    'STATUS_CHANGE:PAUSED',
+    'STATUS_CHANGE:BLOCKED',
     'LICENSE_CHECK:APPROVED',
-    'LICENSE_CHECK:EXPIRED',
+    'LICENSE_CHECK:BLOCKED',
   ]) {
     check(`audit includes ${expectedAction}`, actions.includes(expectedAction), actions.join(', '))
   }

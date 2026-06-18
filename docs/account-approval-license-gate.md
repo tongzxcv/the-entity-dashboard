@@ -8,7 +8,7 @@ The web dashboard is now the source of truth for MT5 account approval. This phas
 - No MT5 trade password or investor password storage.
 - No hardcoded token or secret in the repository.
 - Production EA files stay untouched. EA integration must be tested in a lab/prototype first.
-- Admin can register MT5 accounts, approve/suspend/pause/liquidate/review them, and inspect audit history.
+- Admin can register MT5 accounts, approve, pause, or block them, and inspect audit history.
 - EA/Agent can call `POST /api/ea/license/check` before opening new entries.
 
 ## Status Model
@@ -16,11 +16,14 @@ The web dashboard is now the source of truth for MT5 account approval. This phas
 | Status | New entries | Manage existing | Close existing | Intended use |
 |---|---:|---:|---:|---|
 | `APPROVED` | yes | yes | yes | Normal trading |
-| `PAUSED_NEW_ENTRIES` | no | yes | yes | Stop adding risk, keep basket management |
-| `SUSPENDED` | no | yes | yes | Account is blocked from new trades |
-| `LIQUIDATE_ONLY` | no | no | yes | Reduce/close exposure only |
-| `EXPIRED` | no | yes | yes | Approval expired |
-| `REVIEW` | no | yes | yes | Not approved or mismatch needs admin review |
+| `PAUSED` | no | yes | yes | Temporary stop for news, manual review, or planned pause |
+| `BLOCKED` | no | yes | yes | Unauthorized, suspended, expired, mismatched, or unregistered account |
+
+Legacy rows are migrated as follows:
+
+- `APPROVED` -> `APPROVED`
+- `PAUSED_NEW_ENTRIES`, `REVIEW` -> `PAUSED`
+- `SUSPENDED`, `EXPIRED`, `LIQUIDATE_ONLY` -> `BLOCKED`
 
 ## Architecture
 
@@ -33,7 +36,7 @@ sequenceDiagram
 
     Admin->>API: "Create account registry row"
     API->>DB: "account_registry + audit log"
-    Admin->>API: "Approve/Suspend/Pause with reason"
+    Admin->>API: "Approve/Pause/Block with reason"
     API->>DB: "status transition + actor/IP/user-agent"
     EA->>API: "POST /api/ea/license/check (Bearer token)"
     API->>DB: "Find account_login + broker_server"
@@ -109,15 +112,28 @@ Approved response:
 }
 ```
 
-Suspended response:
+Paused response:
 
 ```json
 {
-  "status": "SUSPENDED",
+  "status": "PAUSED",
   "allow_new_entries": false,
   "allow_manage_existing": true,
   "allow_close_existing": true,
-  "message": "account suspended by admin: reason...",
+  "message": "account paused by admin: reason...",
+  "check_interval_seconds": 30
+}
+```
+
+Blocked response:
+
+```json
+{
+  "status": "BLOCKED",
+  "allow_new_entries": false,
+  "allow_manage_existing": true,
+  "allow_close_existing": true,
+  "message": "account blocked by admin: reason...",
   "check_interval_seconds": 30
 }
 ```
@@ -146,10 +162,10 @@ npm run qa:license-gate-production
 The script uses a synthetic QA account (`999000001` on `QA-License-Server`) so it does not alter live portfolio accounts. It verifies:
 
 - missing and invalid tokens are rejected
-- unregistered accounts return `REVIEW`
-- `APPROVED`, `PAUSED_NEW_ENTRIES`, `SUSPENDED`, `LIQUIDATE_ONLY`, and expiry-derived `EXPIRED` decisions
+- unregistered accounts return `BLOCKED`
+- `APPROVED`, `PAUSED`, `BLOCKED`, and expiry-derived `BLOCKED` decisions
 - status changes and license checks are present in account audit history
-- the QA account is reset to `REVIEW` at the end
+- the QA account is reset to `PAUSED` at the end
 
 ## CSV Import Guide
 
@@ -172,10 +188,8 @@ broker_name,status,allowed_eas,symbol,account_type,ib_group,referral_tag,owner_n
 - `OnInit`: call license check once. If unavailable, start in paused-new-entries mode unless a valid last-known approval exists.
 - `OnTimer`: repeat every `check_interval_seconds`.
 - `APPROVED`: normal trading.
-- `PAUSED_NEW_ENTRIES`: block new entries, keep existing basket management.
-- `SUSPENDED`: block new entries, keep existing basket management and close paths.
-- `LIQUIDATE_ONLY`: block new entries and management actions except close/reduce exposure.
-- `EXPIRED` or `REVIEW`: block new entries.
+- `PAUSED`: block new entries, keep existing basket management and close paths.
+- `BLOCKED`: block new entries, keep existing basket management and close paths.
 - API outage: allow last-known-approved only until TTL, for example 10-30 minutes. After TTL, pause new entries.
 - Never spam orders when AutoTrading is disabled or license blocks new entries.
 

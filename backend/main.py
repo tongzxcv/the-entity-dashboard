@@ -83,11 +83,19 @@ class LoginRequest(BaseModel):
 
 ACCOUNT_STATUSES = {
     "APPROVED",
-    "SUSPENDED",
-    "PAUSED_NEW_ENTRIES",
-    "LIQUIDATE_ONLY",
-    "EXPIRED",
-    "REVIEW",
+    "PAUSED",
+    "BLOCKED",
+}
+
+LEGACY_STATUS_MAP = {
+    "APPROVED": "APPROVED",
+    "PAUSED": "PAUSED",
+    "PAUSED_NEW_ENTRIES": "PAUSED",
+    "REVIEW": "PAUSED",
+    "BLOCKED": "BLOCKED",
+    "SUSPENDED": "BLOCKED",
+    "EXPIRED": "BLOCKED",
+    "LIQUIDATE_ONLY": "BLOCKED",
 }
 
 
@@ -106,7 +114,7 @@ class AccountRegistryPayload(BaseModel):
     allowed_build_hash: str = ""
     allowed_preset: str = ""
     risk_profile: str = ""
-    status: str = "REVIEW"
+    status: str = "PAUSED"
     reason: str = ""
     expiry_date: str = ""
 
@@ -247,10 +255,19 @@ def hash_identifier(value: str) -> str:
 
 
 def normalize_status(value: str) -> str:
-    status = str(value or "REVIEW").strip().upper()
-    if status not in ACCOUNT_STATUSES:
+    status = str(value or "PAUSED").strip().upper()
+    normalized = LEGACY_STATUS_MAP.get(status)
+    if not normalized:
         raise HTTPException(status_code=400, detail=f"Invalid account status: {status}")
-    return status
+    return normalized
+
+
+def normalize_audit_row(row) -> dict:
+    item = dict(row)
+    for key in ("old_status", "new_status"):
+        if item.get(key):
+            item[key] = LEGACY_STATUS_MAP.get(str(item[key]).strip().upper(), item[key])
+    return item
 
 
 def json_list(value) -> list[str]:
@@ -274,6 +291,7 @@ def json_list(value) -> list[str]:
 
 def registry_row_to_dict(row) -> dict:
     item = dict(row)
+    item["status"] = normalize_status(item.get("status"))
     item["allowed_eas"] = json_list(item.get("allowed_eas"))
     item["license_check_count"] = int(item.get("license_check_count") or 0)
     item["license_reject_count"] = int(item.get("license_reject_count") or 0)
@@ -475,7 +493,7 @@ def init_db():
         allowed_build_hash TEXT DEFAULT '',
         allowed_preset TEXT DEFAULT '',
         risk_profile TEXT DEFAULT '',
-        status TEXT NOT NULL DEFAULT 'REVIEW',
+        status TEXT NOT NULL DEFAULT 'PAUSED',
         reason TEXT DEFAULT '',
         approved_by TEXT DEFAULT '',
         approved_at TEXT DEFAULT '',
@@ -519,6 +537,14 @@ def init_db():
         created_at TEXT NOT NULL,
         last_used_at TEXT DEFAULT ''
     )''')
+    cursor.execute('''UPDATE account_registry
+        SET status = CASE
+            WHEN UPPER(status) = 'APPROVED' THEN 'APPROVED'
+            WHEN UPPER(status) IN ('PAUSED', 'PAUSED_NEW_ENTRIES', 'REVIEW') THEN 'PAUSED'
+            WHEN UPPER(status) IN ('BLOCKED', 'SUSPENDED', 'EXPIRED', 'LIQUIDATE_ONLY') THEN 'BLOCKED'
+            ELSE 'BLOCKED'
+        END
+        WHERE status IS NULL OR UPPER(status) NOT IN ('APPROVED', 'PAUSED', 'BLOCKED')''')
     cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_registry_status ON account_registry(status)''')
     cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_registry_login_server ON account_registry(account_login, broker_server)''')
     cursor.execute('''CREATE INDEX IF NOT EXISTS idx_account_audit_account ON account_audit_log(account_id, created_at)''')
@@ -967,11 +993,11 @@ async def get_dashboard(request: Request):
 def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) -> dict:
     if not registry:
         return {
-            "status": "REVIEW",
+            "status": "BLOCKED",
             "allow_new_entries": False,
             "allow_manage_existing": True,
             "allow_close_existing": True,
-            "message": "account not registered: review required",
+            "message": "account not registered: blocked",
             "check_interval_seconds": 30,
         }
 
@@ -981,7 +1007,7 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
     if expiry:
         try:
             if datetime.strptime(expiry, "%Y-%m-%d").date() < now:
-                status = "EXPIRED"
+                status = "BLOCKED"
         except ValueError:
             pass
 
@@ -1001,7 +1027,7 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
 
     if mismatches:
         return {
-            "status": "REVIEW",
+            "status": "BLOCKED",
             "allow_new_entries": False,
             "allow_manage_existing": True,
             "allow_close_existing": True,
@@ -1011,13 +1037,10 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
 
     decisions = {
         "APPROVED": (True, True, True, 60, "approved"),
-        "PAUSED_NEW_ENTRIES": (False, True, True, 30, "new entries paused by admin"),
-        "SUSPENDED": (False, True, True, 30, f"account suspended by admin: {registry.get('reason') or 'no reason provided'}"),
-        "LIQUIDATE_ONLY": (False, False, True, 30, "liquidate only: close or reduce exposure"),
-        "EXPIRED": (False, True, True, 30, "account approval expired"),
-        "REVIEW": (False, True, True, 30, "account pending review"),
+        "PAUSED": (False, True, True, 30, f"account paused by admin: {registry.get('reason') or 'no reason provided'}"),
+        "BLOCKED": (False, True, True, 30, f"account blocked by admin: {registry.get('reason') or 'no reason provided'}"),
     }
-    allow_new, allow_manage, allow_close, interval, message = decisions.get(status, decisions["REVIEW"])
+    allow_new, allow_manage, allow_close, interval, message = decisions.get(status, decisions["BLOCKED"])
     return {
         "status": status,
         "allow_new_entries": allow_new,
@@ -1135,7 +1158,7 @@ async def list_registry_accounts(request: Request, status: str = "", broker: str
                 return False
         return True
 
-    return {"accounts": [item for item in rows if matches(item)], "audit": [dict(row) for row in audits]}
+    return {"accounts": [item for item in rows if matches(item)], "audit": [normalize_audit_row(row) for row in audits]}
 
 
 @app.post("/api/admin/accounts")
@@ -1174,8 +1197,8 @@ async def create_registry_account(payload: AccountRegistryPayload, request: Requ
                 payload.reason.strip(),
                 user["username"] if status == "APPROVED" else "",
                 now if status == "APPROVED" else "",
-                user["username"] if status == "SUSPENDED" else "",
-                now if status == "SUSPENDED" else "",
+                user["username"] if status == "BLOCKED" else "",
+                now if status == "BLOCKED" else "",
                 payload.expiry_date.strip(),
                 now,
                 now,
@@ -1238,9 +1261,9 @@ async def change_registry_status(account_id: int, payload: AccountStatusChange, 
     if new_status == "APPROVED":
         updates["approved_by"] = user["username"]
         updates["approved_at"] = now
-    if new_status in {"SUSPENDED", "PAUSED_NEW_ENTRIES", "LIQUIDATE_ONLY", "EXPIRED", "REVIEW"}:
-        updates["suspended_by"] = user["username"] if new_status == "SUSPENDED" else existing["suspended_by"]
-        updates["suspended_at"] = now if new_status == "SUSPENDED" else existing["suspended_at"]
+    if new_status == "BLOCKED":
+        updates["suspended_by"] = user["username"]
+        updates["suspended_at"] = now
     set_clause = ", ".join(f"{key} = ?" for key in updates.keys())
     cursor.execute(f"UPDATE account_registry SET {set_clause} WHERE id = ?", (*updates.values(), account_id))
     write_audit(cursor, request, account_id=account_id, account_login=existing["account_login"], broker_server=existing["broker_server"], actor=user["username"], actor_role=user["role"], action="STATUS_CHANGE", old_status=existing["status"], new_status=new_status, reason=reason)
@@ -1256,7 +1279,7 @@ async def get_account_audit(account_id: int, request: Request):
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     rows = cursor.execute("SELECT * FROM account_audit_log WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT 300", (account_id,)).fetchall()
     conn.close()
-    return {"audit": [dict(row) for row in rows]}
+    return {"audit": [normalize_audit_row(row) for row in rows]}
 
 
 @app.get("/api/admin/audit-log")
@@ -1266,7 +1289,7 @@ async def get_audit_log(request: Request, limit: int = 300):
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     rows = cursor.execute("SELECT * FROM account_audit_log ORDER BY created_at DESC, id DESC LIMIT ?", (safe_limit,)).fetchall()
     conn.close()
-    return {"audit": [dict(row) for row in rows]}
+    return {"audit": [normalize_audit_row(row) for row in rows]}
 
 
 @app.post("/api/admin/accounts/import-csv")
@@ -1284,7 +1307,7 @@ async def import_registry_accounts(payload: ImportAccountsPayload, request: Requ
         if not account_login or not broker_server:
             report.append({"row": index, "status": "failed", "reason": "missing account_login or broker_server"})
             continue
-        status = normalize_status(row.get("status") or "REVIEW")
+        status = normalize_status(row.get("status") or "PAUSED")
         allowed_eas = json_list(row.get("allowed_eas") or row.get("ea"))
         try:
             cursor.execute(
