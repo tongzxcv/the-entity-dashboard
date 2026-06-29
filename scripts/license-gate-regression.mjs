@@ -24,7 +24,22 @@ check(
     backend.includes('@app.post("/api/admin/accounts")') &&
     backend.includes('@app.delete("/api/admin/accounts/{account_id}")') &&
     backend.includes('@app.post("/api/admin/accounts/{account_id}/status")') &&
+    backend.includes('@app.get("/api/admin/accounts/{account_id}/audit")') &&
     backend.includes('@app.post("/api/admin/accounts/import-csv")'),
+)
+check(
+  'admin agent token endpoints exist',
+  backend.includes('@app.get("/api/admin/agent-tokens")') &&
+    backend.includes('@app.post("/api/admin/agent-tokens")') &&
+    backend.includes('@app.post("/api/admin/agent-tokens/{token_id}/revoke")') &&
+    backend.includes('secrets.token_urlsafe') &&
+    backend.includes('REVOKE_AGENT_TOKEN'),
+)
+check(
+  'account registry filters and delete confirmation exist',
+  backend.includes('risk_profile: str = ""') &&
+    backend.includes('confirm_account_login') &&
+    backend.includes('Type the account login to confirm deletion'),
 )
 check(
   'license tokens are hashed and not logged',
@@ -63,6 +78,10 @@ check(
     app.includes('IB Accounts') &&
     app.includes('custom EA name') &&
     app.includes('Delete registry account') &&
+    app.includes('Agent Tokens') &&
+    app.includes('License Check History') &&
+    app.includes('Type ${deleteTarget.account_login} to confirm') &&
+    app.includes('openHistory(account)') &&
     app.includes('Audit Log') &&
     app.includes('...(isAdmin ? ['),
 )

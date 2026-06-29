@@ -75,10 +75,14 @@ Important columns:
 - `GET /api/admin/accounts/{account_id}/audit`
 - `GET /api/admin/audit-log`
 - `POST /api/admin/accounts/import-csv`
+- `GET /api/admin/agent-tokens`
+- `POST /api/admin/agent-tokens`
+- `POST /api/admin/agent-tokens/{token_id}/revoke`
 
 All admin endpoints require the existing admin session cookie.
-Deleting a registry account removes it from License Gate approval only; it does not delete MT5 portfolio history or trade data.
+Deleting a registry account requires typing the account login and removes it from License Gate approval only; it does not delete MT5 portfolio history or trade data.
 The admin create form supports preset EA chips plus a free-text custom EA name for new packages.
+The token UI shows a newly created raw agent token once. After that, only hashed tokens are stored and the admin can revoke them, not reveal them again.
 
 ## EA License Check API
 
@@ -164,7 +168,8 @@ The request also creates an `account_registry` row with `status=PAUSED`, heartbe
 
 - Tokens are accepted via `Authorization: Bearer` or `X-EA-Token`.
 - Tokens are hashed with SHA-256 before storage/lookup.
-- No token value is returned to UI or written to audit metadata.
+- New agent tokens are returned to the admin UI once at creation time only.
+- No stored token value is returned to UI or written to audit metadata.
 - Basic per-IP/token rate limiting is applied to license checks.
 - Status transitions require an admin session and a reason.
 - Audit rows include actor, role, IP, user agent, old status, new status, reason, and metadata.

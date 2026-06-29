@@ -3931,6 +3931,102 @@ function AuditLogTable({ rows = [] }) {
   )
 }
 
+function AgentTokensPanel() {
+  const [tokens, setTokens] = useState([])
+  const [name, setName] = useState('MT5 EA Agent')
+  const [newToken, setNewToken] = useState('')
+  const [error, setError] = useState('')
+
+  const loadTokens = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens`, { credentials: 'include' })
+      if (!response.ok) throw new Error(`Agent token API ${response.status}`)
+      const result = await response.json()
+      setTokens(result.tokens || [])
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [])
+
+  useEffect(() => { loadTokens() }, [loadTokens])
+
+  const createToken = async (event) => {
+    event.preventDefault()
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Create token API ${response.status}`)
+      setNewToken(result.token || '')
+      await loadTokens()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const revokeToken = async (token) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens/${token.id}/revoke`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Revoke token API ${response.status}`)
+      await loadTokens()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return (
+    <Card className="sec">
+      <CardHeader className="sec-h">
+        <div>
+          <div className="sec-lbl">EA License</div>
+          <CardTitle className="sec-title">Agent Tokens</CardTitle>
+          <CardDescription>Create per-agent bearer tokens for MT5 EA license checks. Tokens are shown once.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? <div className="app-notice danger">{error}</div> : null}
+        <form className="registry-token-form" onSubmit={createToken}>
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Token name" />
+          <Button type="submit">{Ico.lock} Create Agent Token</Button>
+        </form>
+        {newToken ? (
+          <div className="registry-token-once">
+            <div>
+              <div className="sec-lbl">Copy now</div>
+              <div className="tm registry-token-value">{newToken}</div>
+              <CardDescription>This raw token cannot be shown again after you leave this panel.</CardDescription>
+            </div>
+            <Button type="button" variant="outline" onClick={() => copyToClipboard(newToken)}>{Ico.copy} Copy token</Button>
+          </div>
+        ) : null}
+        <div className="registry-token-list">
+          {tokens.map((token) => (
+            <div className="registry-token-row" key={token.id}>
+              <div>
+                <b>{token.name}</b>
+                <div className="tm">created {token.created_at || '-'} - last used {token.last_used_at || 'never'}</div>
+              </div>
+              <div className="registry-actions">
+                <Badge className={`badge ${token.status === 'ACTIVE' ? 'blive' : 'bsell'}`}>{token.status}</Badge>
+                {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => revokeToken(token)}>Revoke</Button> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function AdminAccountsPage() {
   const initialForm = {
     account_login: '',
@@ -3955,12 +4051,15 @@ function AdminAccountsPage() {
   const [audit, setAudit] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState({ status: 'all', search: '' })
+  const [filters, setFilters] = useState({ status: 'all', broker: '', server: '', ea: 'all', risk_profile: '', search: '' })
   const [form, setForm] = useState(initialForm)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusReason, setStatusReason] = useState('')
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deletingRegistry, setDeletingRegistry] = useState(false)
+  const [historyTarget, setHistoryTarget] = useState(null)
+  const [historyRows, setHistoryRows] = useState([])
   const [customEa, setCustomEa] = useState('')
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
@@ -3971,6 +4070,10 @@ function AdminAccountsPage() {
     try {
       const params = new URLSearchParams()
       if (filters.status !== 'all') params.set('status', filters.status)
+      if (filters.broker.trim()) params.set('broker', filters.broker.trim())
+      if (filters.server.trim()) params.set('server', filters.server.trim())
+      if (filters.ea !== 'all') params.set('ea', filters.ea)
+      if (filters.risk_profile.trim()) params.set('risk_profile', filters.risk_profile.trim())
       if (filters.search.trim()) params.set('search', filters.search.trim())
       const response = await fetch(`${API_URL}/api/admin/accounts?${params.toString()}`, { credentials: 'include' })
       if (!response.ok) throw new Error(`Account registry API ${response.status}`)
@@ -3983,9 +4086,15 @@ function AdminAccountsPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters.status, filters.search])
+  }, [filters.status, filters.broker, filters.server, filters.ea, filters.risk_profile, filters.search])
 
   useEffect(() => { loadAccounts() }, [loadAccounts])
+
+  const eaFilterOptions = useMemo(() => {
+    const names = new Set(ACCOUNT_GATE_EAS)
+    accounts.forEach((account) => (account.allowed_eas || []).forEach((ea) => names.add(ea)))
+    return [{ value: 'all', label: 'All EAs' }, ...Array.from(names).sort().map((ea) => ({ value: ea, label: ea }))]
+  }, [accounts])
 
   const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const toggleEa = (ea) => setForm((current) => ({
@@ -4051,7 +4160,8 @@ function AdminAccountsPage() {
     if (!deleteTarget) return
     setDeletingRegistry(true)
     try {
-      const response = await fetch(`${API_URL}/api/admin/accounts/${deleteTarget.id}`, {
+      const params = new URLSearchParams({ confirm_account_login: deleteConfirm.trim() })
+      const response = await fetch(`${API_URL}/api/admin/accounts/${deleteTarget.id}?${params.toString()}`, {
         method: 'DELETE',
         credentials: 'include',
       })
@@ -4063,6 +4173,19 @@ function AdminAccountsPage() {
       setError(err.message)
     } finally {
       setDeletingRegistry(false)
+    }
+  }
+
+  const openHistory = async (account) => {
+    setHistoryTarget(account)
+    setHistoryRows([])
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/${account.id}/audit`, { credentials: 'include' })
+      if (!response.ok) throw new Error(`Account audit API ${response.status}`)
+      const result = await response.json()
+      setHistoryRows(result.audit || [])
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -4087,6 +4210,7 @@ function AdminAccountsPage() {
   return (
     <>
       {error ? <div className="app-notice danger">{error}</div> : null}
+      <AgentTokensPanel />
       <Card className="sec">
         <CardHeader className="sec-h">
           <div>
@@ -4129,6 +4253,10 @@ function AdminAccountsPage() {
           <div><div className="sec-lbl">Filters</div><CardTitle className="sec-title">Registered Accounts</CardTitle></div>
           <div className="registry-toolbar">
             <DashboardSelect value={filters.status} onValueChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: 'all', label: 'All status' }, ...ACCOUNT_GATE_STATUSES.map((status) => ({ value: status, label: status }))]} />
+            <DashboardSelect value={filters.ea} onValueChange={(value) => setFilters((current) => ({ ...current, ea: value }))} options={eaFilterOptions} />
+            <Input placeholder="Broker" value={filters.broker} onChange={(event) => setFilters((current) => ({ ...current, broker: event.target.value }))} />
+            <Input placeholder="Server" value={filters.server} onChange={(event) => setFilters((current) => ({ ...current, server: event.target.value }))} />
+            <Input placeholder="Risk profile" value={filters.risk_profile} onChange={(event) => setFilters((current) => ({ ...current, risk_profile: event.target.value }))} />
             <Input placeholder="Search account/server/client" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
           </div>
         </CardHeader>
@@ -4161,7 +4289,8 @@ function AdminAccountsPage() {
                           {ACCOUNT_GATE_STATUSES.map((status) => (
                             <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>
                           ))}
-                          <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => setDeleteTarget(account)}>{Ico.trash} Delete</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => openHistory(account)}>{Ico.eye} History</Button>
+                          <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => { setDeleteConfirm(''); setDeleteTarget(account) }}>{Ico.trash} Delete</Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -4182,7 +4311,8 @@ function AdminAccountsPage() {
                       <div><span>Last check</span><b>{account.last_license_check_at || 'Never'}</b></div>
                       <div className="registry-actions mobile">
                         {ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>)}
-                        <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => setDeleteTarget(account)}>{Ico.trash} Delete</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => openHistory(account)}>{Ico.eye} History</Button>
+                        <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => { setDeleteConfirm(''); setDeleteTarget(account) }}>{Ico.trash} Delete</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -4208,17 +4338,33 @@ function AdminAccountsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingRegistry) setDeleteTarget(null) }}>
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingRegistry) { setDeleteTarget(null); setDeleteConfirm('') } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete registry account?</DialogTitle>
             <DialogDescription>{deleteTarget ? `${deleteTarget.account_login} / ${deleteTarget.broker_server}` : ''}</DialogDescription>
           </DialogHeader>
           <div className="dialog-warning">This removes the account from License Gate approval. Existing dashboard portfolio/trade history is not deleted.</div>
+          <Input
+            value={deleteConfirm}
+            onChange={(event) => setDeleteConfirm(event.target.value)}
+            placeholder={deleteTarget ? `Type ${deleteTarget.account_login} to confirm` : 'Type account login to confirm'}
+          />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingRegistry}>Cancel</Button>
-            <Button type="button" className="b-danger" onClick={deleteRegistryAccount} disabled={deletingRegistry}>{Ico.trash} {deletingRegistry ? 'Deleting...' : 'Delete registry account'}</Button>
+            <Button type="button" variant="outline" onClick={() => { setDeleteTarget(null); setDeleteConfirm('') }} disabled={deletingRegistry}>Cancel</Button>
+            <Button type="button" className="b-danger" onClick={deleteRegistryAccount} disabled={deletingRegistry || deleteConfirm.trim() !== String(deleteTarget?.account_login || '')}>{Ico.trash} {deletingRegistry ? 'Deleting...' : 'Delete registry account'}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(historyTarget)} onOpenChange={(open) => { if (!open) { setHistoryTarget(null); setHistoryRows([]) } }}>
+        <DialogContent className="wide-dialog">
+          <DialogHeader>
+            <DialogTitle>License Check History</DialogTitle>
+            <DialogDescription>{historyTarget ? `${historyTarget.account_login} / ${historyTarget.broker_server}` : ''}</DialogDescription>
+          </DialogHeader>
+          <AuditLogTable rows={historyRows} />
+          <DialogFooter><Button type="button" variant="outline" onClick={() => { setHistoryTarget(null); setHistoryRows([]) }}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

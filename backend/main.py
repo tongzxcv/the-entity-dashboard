@@ -14,6 +14,7 @@ import os
 import base64
 import hashlib
 import hmac
+import secrets
 import time
 import re
 import csv
@@ -143,6 +144,10 @@ class AccountStatusChange(BaseModel):
 
 class ImportAccountsPayload(BaseModel):
     csv_text: str
+
+
+class AgentTokenPayload(BaseModel):
+    name: str = ""
 
 
 class LicenseCheckRequest(BaseModel):
@@ -537,6 +542,8 @@ def init_db():
         created_at TEXT NOT NULL,
         last_used_at TEXT DEFAULT ''
     )''')
+    try: cursor.execute('ALTER TABLE ea_agent_tokens ADD COLUMN revoked_at TEXT DEFAULT ""')
+    except: pass
     cursor.execute('''UPDATE account_registry
         SET status = CASE
             WHEN UPPER(status) = 'APPROVED' THEN 'APPROVED'
@@ -1220,6 +1227,65 @@ async def list_registry_accounts(request: Request, status: str = "", broker: str
     return {"accounts": [item for item in rows if matches(item)], "audit": [normalize_audit_row(row) for row in audits]}
 
 
+@app.get("/api/admin/agent-tokens")
+async def list_agent_tokens(request: Request):
+    require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    rows = cursor.execute(
+        "SELECT id, name, status, created_at, last_used_at FROM ea_agent_tokens ORDER BY created_at DESC, id DESC"
+    ).fetchall()
+    conn.close()
+    return {"tokens": [dict(row) for row in rows]}
+
+
+@app.post("/api/admin/agent-tokens")
+async def create_agent_token(payload: AgentTokenPayload, request: Request):
+    user = require_admin(request)
+    name = payload.name.strip()[:80] or "ea-agent"
+    raw_token = f"ea_{secrets.token_urlsafe(32)}"
+    now = utc_now_iso()
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO ea_agent_tokens (name, token_hash, status, created_at) VALUES (?, ?, 'ACTIVE', ?)",
+        (name, hash_secret(raw_token), now),
+    )
+    token_id = cursor.lastrowid
+    write_audit(
+        cursor,
+        request,
+        actor=user["username"],
+        actor_role=user["role"],
+        action="CREATE_AGENT_TOKEN",
+        reason=f"created agent token: {name}",
+        metadata={"token_id": token_id, "name": name},
+    )
+    conn.commit(); conn.close()
+    return {"id": token_id, "name": name, "token": raw_token, "created_at": now}
+
+
+@app.post("/api/admin/agent-tokens/{token_id}/revoke")
+async def revoke_agent_token(token_id: int, request: Request):
+    user = require_admin(request)
+    now = utc_now_iso()
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM ea_agent_tokens WHERE id = ?", (token_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Agent token not found")
+    cursor.execute("UPDATE ea_agent_tokens SET status = 'REVOKED', revoked_at = ? WHERE id = ?", (now, token_id))
+    write_audit(
+        cursor,
+        request,
+        actor=user["username"],
+        actor_role=user["role"],
+        action="REVOKE_AGENT_TOKEN",
+        reason=f"revoked agent token: {row['name']}",
+        metadata={"token_id": token_id, "name": row["name"]},
+    )
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+
 @app.post("/api/admin/accounts")
 async def create_registry_account(payload: AccountRegistryPayload, request: Request):
     user = require_admin(request)
@@ -1304,13 +1370,16 @@ async def update_registry_account(account_id: int, payload: AccountRegistryUpdat
 
 
 @app.delete("/api/admin/accounts/{account_id}")
-async def delete_registry_account(account_id: int, request: Request):
+async def delete_registry_account(account_id: int, request: Request, confirm_account_login: str = ""):
     user = require_admin(request)
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     existing = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
     if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Account registry row not found")
+    if str(confirm_account_login or "").strip() != str(existing["account_login"]):
+        conn.close()
+        raise HTTPException(status_code=400, detail="Type the account login to confirm deletion")
     write_audit(
         cursor,
         request,

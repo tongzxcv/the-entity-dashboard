@@ -1102,6 +1102,53 @@ button:disabled{cursor:progress;opacity:0.72}
 .registry-toolbar > * {
   min-width: 0;
 }
+.registry-token-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.registry-token-form input {
+  min-width: min(320px, 100%);
+  max-width: 420px;
+}
+.registry-token-once {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(78,159,150,0.25);
+  border-radius: 8px;
+  background: rgba(78,159,150,0.08);
+  padding: 12px;
+  margin: 12px 0;
+}
+.registry-token-value {
+  max-width: min(720px, 100%);
+  overflow-wrap: anywhere;
+  color: #3DD68C;
+}
+.registry-token-list {
+  display: grid;
+  gap: 8px;
+}
+.registry-token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(200,218,238,0.12);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  padding: 10px 12px;
+}
+.registry-token-row > div > .tm + .tm {
+  display: none;
+}
+.wide-dialog {
+  width: min(980px, calc(100vw - 32px));
+  max-width: min(980px, calc(100vw - 32px));
+}
 .registry-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1164,6 +1211,12 @@ button:disabled{cursor:progress;opacity:0.72}
   .registry-toolbar {
     width: 100%;
     min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .registry-token-form,
+  .registry-token-once,
+  .registry-token-row {
     flex-direction: column;
     align-items: stretch;
   }
