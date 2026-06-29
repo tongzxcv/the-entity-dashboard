@@ -37,6 +37,13 @@ check(
   backend.includes('LICENSE_RATE_BUCKET') && backend.includes('EA_LICENSE_RATE_LIMIT_PER_MINUTE'),
 )
 check(
+  'unregistered license checks auto-register paused accounts',
+  backend.includes('def auto_register_license_account') &&
+    backend.includes('AUTO_REGISTER_ACCOUNT') &&
+    backend.includes("'PAUSED', ?") &&
+    backend.includes('account auto-registered and waiting for admin approval'),
+)
+check(
   'account status audit exists',
   backend.includes('account_audit_log') &&
     backend.includes('write_audit') &&

@@ -993,11 +993,11 @@ async def get_dashboard(request: Request):
 def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) -> dict:
     if not registry:
         return {
-            "status": "BLOCKED",
+            "status": "PAUSED",
             "allow_new_entries": False,
             "allow_manage_existing": True,
             "allow_close_existing": True,
-            "message": "account not registered: blocked",
+            "message": "account auto-registered and waiting for admin approval",
             "check_interval_seconds": 30,
         }
 
@@ -1051,6 +1051,66 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
     }
 
 
+def auto_register_license_account(cursor, request: Request, *, payload: LicenseCheckRequest, token_info: dict, account_login: str, broker_server: str, now: str) -> dict:
+    allowed_eas = [payload.ea_name[:120]] if payload.ea_name else []
+    note = "Auto-registered by EA license check. Waiting for admin approval."
+    cursor.execute(
+        """INSERT OR IGNORE INTO account_registry
+           (account_login, broker_name, broker_server, account_type, symbol, note,
+            allowed_eas, allowed_version, allowed_build_hash, status, reason,
+            last_license_check_at, last_ea_heartbeat_at, last_ea_name, last_ea_version, last_symbol,
+            last_machine_id_hash, last_check_result, license_check_count, license_reject_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PAUSED', ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)""",
+        (
+            account_login,
+            "",
+            broker_server,
+            "",
+            payload.symbol[:80],
+            note,
+            json.dumps(allowed_eas),
+            payload.ea_version[:120],
+            payload.build_hash[:120],
+            "auto-registered; pending admin approval",
+            now,
+            now,
+            payload.ea_name[:120],
+            payload.ea_version[:120],
+            payload.symbol[:80],
+            hash_identifier(payload.machine_id),
+            "account auto-registered and waiting for admin approval",
+            now,
+            now,
+        ),
+    )
+    inserted = cursor.rowcount > 0
+    row = cursor.execute(
+        "SELECT * FROM account_registry WHERE account_login = ? AND broker_server = ?",
+        (account_login, broker_server),
+    ).fetchone()
+    registry = registry_row_to_dict(row)
+    if inserted:
+        write_audit(
+            cursor,
+            request,
+            account_id=registry["id"],
+            account_login=account_login,
+            broker_server=broker_server,
+            actor=token_info.get("name", "ea-agent"),
+            actor_role="ea_agent",
+            action="AUTO_REGISTER_ACCOUNT",
+            new_status="PAUSED",
+            reason="EA license check created pending account",
+            metadata={
+                "ea_name": payload.ea_name,
+                "ea_version": payload.ea_version,
+                "symbol": payload.symbol,
+                "magic": str(payload.magic or ""),
+            },
+        )
+    return registry
+
+
 @app.post("/api/ea/license/check")
 async def check_ea_license(payload: LicenseCheckRequest, request: Request):
     token_info = require_license_token(request)
@@ -1065,9 +1125,21 @@ async def check_ea_license(payload: LicenseCheckRequest, request: Request):
         (account_login, broker_server),
     ).fetchone()
     registry = registry_row_to_dict(row) if row else None
+    now = utc_now_iso()
+
+    if not registry:
+        registry = auto_register_license_account(
+            cursor,
+            request,
+            payload=payload,
+            token_info=token_info,
+            account_login=account_login,
+            broker_server=broker_server,
+            now=now,
+        )
+
     decision = build_license_decision(registry, payload)
     rejected = not decision["allow_new_entries"]
-    now = utc_now_iso()
 
     if registry:
         cursor.execute(
@@ -1115,19 +1187,6 @@ async def check_ea_license(payload: LicenseCheckRequest, request: Request):
                 "magic": str(payload.magic or ""),
                 "allowed": decision["allow_new_entries"],
             },
-        )
-    else:
-        write_audit(
-            cursor,
-            request,
-            account_login=account_login,
-            broker_server=broker_server,
-            actor=token_info.get("name", "ea-agent"),
-            actor_role="ea_agent",
-            action="LICENSE_CHECK_UNREGISTERED",
-            new_status=decision["status"],
-            reason=decision["message"],
-            metadata={"ea_name": payload.ea_name, "ea_version": payload.ea_version, "symbol": payload.symbol},
         )
     conn.commit(); conn.close()
     return decision

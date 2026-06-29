@@ -163,8 +163,14 @@ try {
     account_login: '999000002',
     machine_id: 'qa-production-license-gate-unregistered',
   })
-  check('unregistered account returns blocked', unregistered.status === 200 && unregistered.json.status === 'BLOCKED', JSON.stringify(unregistered.json))
+  check('unregistered account auto-registers paused', unregistered.status === 200 && unregistered.json.status === 'PAUSED', JSON.stringify(unregistered.json))
   check('unregistered account blocks new entries', unregistered.json.allow_new_entries === false, JSON.stringify(unregistered.json))
+  const autoRegistered = await apiJson(page, 'GET', '/api/admin/accounts?search=999000002')
+  check(
+    'auto-registered account appears in registry',
+    autoRegistered.status === 200 && (autoRegistered.json.accounts || []).some((item) => item.account_login === '999000002' && item.status === 'PAUSED'),
+    JSON.stringify(autoRegistered.json),
+  )
 
   const account = await upsertQaAccount(page)
   await setExpiry(page, account.id, '')

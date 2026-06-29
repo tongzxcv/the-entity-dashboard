@@ -10,6 +10,7 @@ The web dashboard is now the source of truth for MT5 account approval. This phas
 - Production EA files stay untouched. EA integration must be tested in a lab/prototype first.
 - Admin can register MT5 accounts, approve, pause, or block them, and inspect audit history.
 - EA/Agent can call `POST /api/ea/license/check` before opening new entries.
+- A valid EA/Agent token can auto-register an unknown `account_login + broker_server` pair as `PAUSED`; admin approval is still required before new entries are allowed.
 
 ## Status Model
 
@@ -40,6 +41,9 @@ sequenceDiagram
     API->>DB: "status transition + actor/IP/user-agent"
     EA->>API: "POST /api/ea/license/check (Bearer token)"
     API->>DB: "Find account_login + broker_server"
+    alt "Account is unknown"
+        API->>DB: "Create PAUSED registry row + AUTO_REGISTER_ACCOUNT audit"
+    end
     API->>DB: "Update heartbeat, check count, audit"
     API-->>EA: "allow_new_entries / manage / close flags"
 ```
@@ -138,6 +142,21 @@ Blocked response:
 }
 ```
 
+First check from an unknown account:
+
+```json
+{
+  "status": "PAUSED",
+  "allow_new_entries": false,
+  "allow_manage_existing": true,
+  "allow_close_existing": true,
+  "message": "account paused by admin: auto-registered; pending admin approval",
+  "check_interval_seconds": 30
+}
+```
+
+The request also creates an `account_registry` row with `status=PAUSED`, heartbeat fields, hashed `machine_id`, detected EA/version/symbol metadata, and an `AUTO_REGISTER_ACCOUNT` audit event. Admin must still approve it.
+
 ## Security Checklist
 
 - Tokens are accepted via `Authorization: Bearer` or `X-EA-Token`.
@@ -162,7 +181,7 @@ npm run qa:license-gate-production
 The script uses a synthetic QA account (`999000001` on `QA-License-Server`) so it does not alter live portfolio accounts. It verifies:
 
 - missing and invalid tokens are rejected
-- unregistered accounts return `BLOCKED`
+- unregistered accounts auto-register as `PAUSED`
 - `APPROVED`, `PAUSED`, `BLOCKED`, and expiry-derived `BLOCKED` decisions
 - status changes and license checks are present in account audit history
 - the QA account is reset to `PAUSED` at the end
@@ -198,6 +217,7 @@ broker_name,status,allowed_eas,symbol,account_type,ib_group,referral_tag,owner_n
 Implemented:
 
 - Additive SQLite migration/schema.
+- Auto-registration of unknown EA accounts as `PAUSED` pending admin approval.
 - Admin Account Registry UI.
 - Admin Audit Log UI.
 - License check API with bearer token, rate limit, status decisions, heartbeat fields, and audit events.
