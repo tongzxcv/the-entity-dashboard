@@ -3959,6 +3959,9 @@ function AdminAccountsPage() {
   const [form, setForm] = useState(initialForm)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusReason, setStatusReason] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deletingRegistry, setDeletingRegistry] = useState(false)
+  const [customEa, setCustomEa] = useState('')
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importReport, setImportReport] = useState([])
@@ -3991,6 +3994,15 @@ function AdminAccountsPage() {
       ? current.allowed_eas.filter((item) => item !== ea)
       : [...current.allowed_eas, ea],
   }))
+  const addCustomEa = () => {
+    const ea = customEa.trim()
+    if (!ea) return
+    setForm((current) => ({
+      ...current,
+      allowed_eas: current.allowed_eas.includes(ea) ? current.allowed_eas : [...current.allowed_eas, ea],
+    }))
+    setCustomEa('')
+  }
 
   const createAccount = async (event) => {
     event.preventDefault()
@@ -4032,6 +4044,25 @@ function AdminAccountsPage() {
       await loadAccounts()
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const deleteRegistryAccount = async () => {
+    if (!deleteTarget) return
+    setDeletingRegistry(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/${deleteTarget.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Delete registry API ${response.status}`)
+      setDeleteTarget(null)
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingRegistry(false)
     }
   }
 
@@ -4083,6 +4114,10 @@ function AdminAccountsPage() {
               {ACCOUNT_GATE_EAS.map((ea) => (
                 <Button key={ea} type="button" variant={form.allowed_eas.includes(ea) ? 'default' : 'outline'} onClick={() => toggleEa(ea)}>{ea}</Button>
               ))}
+              <div className="registry-custom-ea">
+                <Input placeholder="custom EA name" value={customEa} onChange={(event) => setCustomEa(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomEa() } }} />
+                <Button type="button" variant="outline" onClick={addCustomEa}>Add EA</Button>
+              </div>
             </div>
             <Button type="submit">Add registry account</Button>
           </form>
@@ -4126,6 +4161,7 @@ function AdminAccountsPage() {
                           {ACCOUNT_GATE_STATUSES.map((status) => (
                             <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>
                           ))}
+                          <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => setDeleteTarget(account)}>{Ico.trash} Delete</Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -4144,7 +4180,10 @@ function AdminAccountsPage() {
                     <CardContent className="responsive-row-body p-0">
                       <div><span>EA</span><b>{(account.allowed_eas || []).join(', ') || 'Any'}</b></div>
                       <div><span>Last check</span><b>{account.last_license_check_at || 'Never'}</b></div>
-                      <div className="registry-actions mobile">{ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>)}</div>
+                      <div className="registry-actions mobile">
+                        {ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>)}
+                        <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => setDeleteTarget(account)}>{Ico.trash} Delete</Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -4166,6 +4205,20 @@ function AdminAccountsPage() {
             <Input value={statusReason} onChange={(event) => setStatusReason(event.target.value)} placeholder="Reason is required" required />
             <DialogFooter><Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button type="submit">Save status</Button></DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingRegistry) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete registry account?</DialogTitle>
+            <DialogDescription>{deleteTarget ? `${deleteTarget.account_login} / ${deleteTarget.broker_server}` : ''}</DialogDescription>
+          </DialogHeader>
+          <div className="dialog-warning">This removes the account from License Gate approval. Existing dashboard portfolio/trade history is not deleted.</div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingRegistry}>Cancel</Button>
+            <Button type="button" className="b-danger" onClick={deleteRegistryAccount} disabled={deletingRegistry}>{Ico.trash} {deletingRegistry ? 'Deleting...' : 'Delete registry account'}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

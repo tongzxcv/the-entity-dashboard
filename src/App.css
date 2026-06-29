@@ -1084,6 +1084,14 @@ button:disabled{cursor:progress;opacity:0.72}
   gap: 8px;
   grid-column: span 3;
 }
+.registry-custom-ea {
+  display: flex;
+  gap: 8px;
+  min-width: min(360px, 100%);
+}
+.registry-custom-ea input {
+  min-width: 160px;
+}
 .registry-toolbar {
   display: flex;
   align-items: center;
@@ -1128,6 +1136,14 @@ button:disabled{cursor:progress;opacity:0.72}
   max-height: 160px;
   overflow: auto;
 }
+.dialog-warning {
+  border: 1px solid rgba(229,168,75,0.25);
+  border-radius: 8px;
+  background: rgba(229,168,75,0.08);
+  color: #E5A84B;
+  padding: 10px 12px;
+  font-size: 13px;
+}
 .app-notice.danger {
   border-color: rgba(240,96,122,0.35);
   background: rgba(240,96,122,0.12);
@@ -1140,6 +1156,10 @@ button:disabled{cursor:progress;opacity:0.72}
   }
   .registry-ea-picks {
     grid-column: auto;
+  }
+  .registry-custom-ea {
+    width: 100%;
+    flex-direction: column;
   }
   .registry-toolbar {
     width: 100%;

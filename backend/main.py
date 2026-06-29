@@ -1303,6 +1303,32 @@ async def update_registry_account(account_id: int, payload: AccountRegistryUpdat
     return registry_row_to_dict(row)
 
 
+@app.delete("/api/admin/accounts/{account_id}")
+async def delete_registry_account(account_id: int, request: Request):
+    user = require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    existing = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Account registry row not found")
+    write_audit(
+        cursor,
+        request,
+        account_id=account_id,
+        account_login=existing["account_login"],
+        broker_server=existing["broker_server"],
+        actor=user["username"],
+        actor_role=user["role"],
+        action="DELETE_ACCOUNT",
+        old_status=existing["status"],
+        new_status=None,
+        reason="registry account deleted by admin",
+    )
+    cursor.execute("DELETE FROM account_registry WHERE id = ?", (account_id,))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+
 @app.post("/api/admin/accounts/{account_id}/status")
 async def change_registry_status(account_id: int, payload: AccountStatusChange, request: Request):
     user = require_admin(request)

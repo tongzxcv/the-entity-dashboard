@@ -70,12 +70,15 @@ Important columns:
 - `GET /api/admin/accounts`
 - `POST /api/admin/accounts`
 - `PUT /api/admin/accounts/{account_id}`
+- `DELETE /api/admin/accounts/{account_id}`
 - `POST /api/admin/accounts/{account_id}/status`
 - `GET /api/admin/accounts/{account_id}/audit`
 - `GET /api/admin/audit-log`
 - `POST /api/admin/accounts/import-csv`
 
 All admin endpoints require the existing admin session cookie.
+Deleting a registry account removes it from License Gate approval only; it does not delete MT5 portfolio history or trade data.
+The admin create form supports preset EA chips plus a free-text custom EA name for new packages.
 
 ## EA License Check API
 

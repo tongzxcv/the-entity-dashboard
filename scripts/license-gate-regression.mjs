@@ -20,8 +20,9 @@ check(
 )
 check(
   'admin account registry endpoints exist',
-  backend.includes('@app.get("/api/admin/accounts")') &&
+    backend.includes('@app.get("/api/admin/accounts")') &&
     backend.includes('@app.post("/api/admin/accounts")') &&
+    backend.includes('@app.delete("/api/admin/accounts/{account_id}")') &&
     backend.includes('@app.post("/api/admin/accounts/{account_id}/status")') &&
     backend.includes('@app.post("/api/admin/accounts/import-csv")'),
 )
@@ -60,6 +61,8 @@ check(
   app.includes('function AdminAccountsPage') &&
     app.includes('function AuditLogPage') &&
     app.includes('IB Accounts') &&
+    app.includes('custom EA name') &&
+    app.includes('Delete registry account') &&
     app.includes('Audit Log') &&
     app.includes('...(isAdmin ? ['),
 )
