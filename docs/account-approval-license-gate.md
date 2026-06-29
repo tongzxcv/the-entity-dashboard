@@ -227,6 +227,7 @@ Implemented:
 - Additive SQLite migration/schema.
 - Auto-registration of unknown EA accounts as `PAUSED` pending admin approval.
 - Admin Account Registry UI.
+- Admin Agent Token UI with one-time raw token display and revoke action.
 - Admin Audit Log UI.
 - License check API with bearer token, rate limit, status decisions, heartbeat fields, and audit events.
 - Dashboard account enrichment with `approval_status`.
@@ -237,5 +238,4 @@ Not live yet:
 
 - Production EA integration.
 - HMAC signature verification.
-- Dedicated token creation UI.
 - Direct trading controls from web. This is intentionally excluded.

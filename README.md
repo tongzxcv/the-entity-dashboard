@@ -23,6 +23,10 @@ npm run build
 
 See [`docs/DEPLOY_CHECKLIST.md`](docs/DEPLOY_CHECKLIST.md) before publishing a new production build.
 
+## User guide
+
+Thai operations guide: [`docs/USER_GUIDE_TH.md`](docs/USER_GUIDE_TH.md)
+
 ## Production regression
 
 ```powershell
