@@ -1679,3 +1679,274 @@ textarea:focus {
     transform: none;
   }
 }
+
+/* NOC readability pass: keep the cyber direction, reduce glow/noise, fix dense data layout. */
+:root {
+  --noc-panel: rgba(5, 10, 24, 0.96);
+  --noc-card: rgba(13, 23, 42, 0.94);
+  --noc-card-strong: rgba(15, 27, 49, 0.98);
+  --noc-muted: #b7c4dc;
+  --noc-dim: #8ea0bf;
+  --noc-line: rgba(94, 118, 158, 0.24);
+  --noc-line-cyan: rgba(34, 211, 238, 0.28);
+  --noc-purple: #7c3aed;
+  --noc-fuchsia: #db2777;
+  --noc-cyan: #22d3ee;
+  --noc-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.028);
+}
+
+body {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(34, 211, 238, 0.10), transparent 32%),
+    radial-gradient(circle at 88% 10%, rgba(124, 58, 237, 0.10), transparent 28%),
+    #030712;
+}
+
+.dash {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.09), transparent 34%),
+    radial-gradient(circle at 84% 8%, rgba(124, 58, 237, 0.08), transparent 30%),
+    linear-gradient(135deg, #030712 0%, #07101f 56%, #050816 100%);
+}
+
+.dash::before {
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.sb,
+.tb,
+.mobile-nav,
+.mobile-shell-topbar {
+  background: rgba(3, 7, 18, 0.96);
+  border-color: rgba(71, 85, 105, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.sb-brand,
+.sb-foot,
+.tb,
+.mobile-shell-topbar {
+  border-color: rgba(71, 85, 105, 0.36);
+}
+
+.tb::after {
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.34), rgba(124, 58, 237, 0.16), transparent);
+}
+
+.sb-icon,
+.app-logo,
+.login-logo {
+  background: linear-gradient(135deg, #38bdf8, #14b8a6);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.18);
+}
+
+.ni.on,
+.ni:hover {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.14), rgba(15, 23, 42, 0.42));
+  border-left-color: var(--noc-cyan);
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+
+.sec,
+.kpi,
+.rp,
+.eac,
+.ea-detail,
+.broker-filter-card,
+.period-filter-card,
+.stat,
+.ac,
+.logsc,
+.terminal-card,
+.mt5-group,
+.symcard,
+.responsive-row-card,
+.reporter-status-card,
+.system-health-card,
+.alert-kpi,
+.config-field,
+.config-box,
+.registry-textarea,
+.import-report,
+.dialog-warning,
+.login-card,
+.login-brand {
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(8, 13, 28, 0.94));
+  border-color: rgba(71, 85, 105, 0.42);
+  box-shadow: var(--noc-shadow);
+  backdrop-filter: blur(8px);
+}
+
+.sec:hover,
+.kpi:hover,
+.eac:hover,
+.terminal-card:hover,
+.symcard:hover,
+.responsive-row-card:hover {
+  border-color: rgba(34, 211, 238, 0.32);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.34);
+}
+
+.sec-h,
+.each,
+.data-table-head,
+.detail-stat-grid,
+.detail-stat-row,
+.card-grid,
+.ops-brief {
+  border-color: rgba(71, 85, 105, 0.46);
+}
+
+.tbl th,
+.data-table th {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: rgba(71, 85, 105, 0.42);
+}
+
+.tbl td,
+.data-table td,
+.row,
+.history-row,
+.trade-row {
+  border-color: rgba(71, 85, 105, 0.32);
+}
+
+.b-sec,
+.b-cmd,
+.fctl,
+.period-tab,
+.brtab,
+.tab,
+.input,
+.select,
+input,
+select,
+textarea,
+.registry-toolbar,
+.registry-token-row {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(71, 85, 105, 0.42);
+}
+
+.period-tab.active,
+.period-tab.on,
+.period-tab[data-state="active"],
+.brtab.active,
+.brtab.on,
+.tab.active,
+.filter-chip.active {
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.42);
+  color: #67e8f9;
+}
+
+.kpi,
+.stat,
+.detail-stat-row > div,
+.eak,
+.mini-stat,
+.summary-cell,
+.eak-full {
+  background: rgba(15, 23, 42, 0.92);
+}
+
+.ops-card,
+.ops-brief-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(14, 22, 39, 0.94));
+  border-color: rgba(71, 85, 105, 0.38);
+}
+
+.tb-eyebrow,
+.sec-lbl,
+.kl,
+.sl,
+.asl,
+.eakl,
+.mini-lbl,
+.field-label,
+.login-eyebrow,
+.login-mini-label {
+  color: #9fb1d1;
+  font-size: 10.5px;
+}
+
+.eakv,
+.detail-stat-row b,
+.detail-risk-row b {
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.eak-balance-equity {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.eak-balance-equity > div {
+  display: block;
+  min-width: 0;
+}
+
+.eak-balance-equity .eakl {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.eak-balance-equity .eakv {
+  display: block;
+}
+
+.broker-logo {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+.broker-logo img {
+  padding: 2px;
+}
+
+@media (max-width: 900px) {
+  .page,
+  .filter-shell,
+  .ov,
+  .ov > *,
+  .sec,
+  .sec-h,
+  .cwrap,
+  .cwrap > *,
+  .recharts-wrapper,
+  .recharts-surface {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .ov {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .sec-h {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .tbts {
+    width: 100%;
+  }
+
+  .tbt {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .eak-balance-equity {
+    gap: 10px;
+  }
+}
