@@ -1951,6 +1951,52 @@ textarea,
   }
 }
 
+/* ── Overview layout balance: prevent the right-side rail from towering
+   over a short left column (which left big whitespace under the chart).
+   On wide screens the chart/perf area and the rail now align to the top
+   and stretch; the equity curve fills available height instead of
+   collapsing to a thin strip with empty space beneath it. ── */
+@media (min-width: 901px) {
+  .ov {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .ov > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  .ov > div:first-child > .sec { flex: 1 1 auto; }
+  /* Let the equity curve section grow so it fills the column height instead
+     of leaving whitespace when the right rail is taller. */
+  .ov > div:first-child > .sec:first-child {
+    display: flex;
+    flex-direction: column;
+  }
+  .ov > div:first-child > .sec:first-child > .cwrap {
+    flex: 1 1 auto;
+    min-height: 240px;
+  }
+  .ov > div:first-child > .sec:last-child {
+    flex: 0 0 auto;
+  }
+}
+
+/* Account currency summary cards: stop them collapsing too narrow and
+   leaving sparse whitespace when there are only one or two groups. */
+.acct-row {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+}
+.ac { padding: 15px 16px; border-radius: 12px; }
+.ag { gap: 14px; }
+.asv { font-size: 17px; }
+
+/* Right rail cards a touch more breathing room */
+.rp { border-radius: 12px; padding: 15px 16px; }
+
 /* ════════════════════════════════════════════════════════════════════════
    COMMAND-CENTER REFRESH (final layer)
    Goal: unify every inner page to the same premium direction as login,
