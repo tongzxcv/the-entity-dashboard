@@ -2246,6 +2246,7 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
   padding: 14px 15px;
   border-radius: 11px;
   box-shadow: var(--cc-shadow);
+  min-width: 0;
 }
 .stat::before {
   content: '';
@@ -2257,27 +2258,36 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
   opacity: 0.7;
 }
 .stat .sl { margin-bottom: 8px; }
-.stat .sv { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: var(--cc-ink); letter-spacing: -0.01em; }
+.stat .sv { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: var(--cc-ink); letter-spacing: -0.01em; line-height: 1.15; overflow-wrap: anywhere; word-break: break-word; }
 .stat .sv.g { color: var(--cc-green); }
 .stat .sv.r { color: var(--cc-red); }
 .stat .sv.a { color: var(--cc-accent); }
 .stat .ss { font-size: 10px; color: var(--cc-dim); font-family: 'JetBrains Mono', monospace; margin-top: 5px; }
 
 /* Compact KPI strip + metric cards: same value typography */
-.kpi-compact { border-radius: 11px; }
+.kpi-compact { border-radius: 11px; min-width: 0; }
 .kl-compact { color: var(--cc-dim); }
-.kv-compact { color: var(--cc-ink); }
+.kv-compact { color: var(--cc-ink); line-height: 1.15; overflow-wrap: anywhere; word-break: break-word; font-size: clamp(13px, 1.6vw, 15px); }
 .kpi-compact.g .kv-compact { color: var(--cc-green); }
 .kpi-compact.r .kv-compact { color: var(--cc-red); }
 .km-compact { color: var(--cc-dim); }
 
 .kpi { border-radius: 12px; }
 .kpi .kl { color: var(--cc-dim); }
-.kpi .kv { font-family: 'JetBrains Mono', monospace; font-size: 21px; font-weight: 600; color: var(--cc-ink); }
+.kpi .kv { font-family: 'JetBrains Mono', monospace; font-size: 21px; font-weight: 600; color: var(--cc-ink); line-height: 1.1; overflow-wrap: anywhere; word-break: break-word; }
 .kpi .kv.g { color: var(--cc-green); }
 .kpi .kv.r { color: var(--cc-red); }
 .kpi:hover { transform: none; }
 .kbar { opacity: 0.8; }
+
+/* KPI strip: never let cards collapse so narrow that currency values clip. */
+.kpi-dashboard-layout { gap: 10px; }
+.kpi-strip-wrap { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.history-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+/* period-insight: long currency/percent combos must wrap, never clip. */
+.period-insight b { overflow-wrap: anywhere; word-break: break-word; line-height: 1.2; }
+.period-insight em { overflow-wrap: anywhere; }
 
 /* ── Overview page polish ── */
 .ops-brief {
@@ -2295,7 +2305,7 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
 }
 .ops-card:not(:disabled):hover { background: rgba(22, 32, 52, 0.92); transform: none; }
 .ops-card span { color: var(--cc-dim); }
-.ops-card strong { color: var(--cc-ink); }
+.ops-card strong { color: var(--cc-ink); white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.1; }
 .ops-card small { color: var(--cc-ink-2); }
 .ops-card em { color: var(--cc-dim); }
 .ops-card.good { box-shadow: inset 3px 0 0 var(--cc-green); }
@@ -2393,7 +2403,25 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
 .terminal-grid-board { background: radial-gradient(circle at 50% 0, rgba(56, 189, 248, 0.03), transparent 44%); }
 .terminal-card { border-radius: 13px; background: var(--cc-card-2); box-shadow: var(--cc-shadow); }
 .terminal-shell { background: linear-gradient(180deg, rgba(12, 18, 32, 0.96), rgba(7, 11, 22, 0.96)); }
-.terminal-title strong { color: var(--cc-ink); }
+.terminal-title strong {
+  color: var(--cc-ink);
+  /* Allow up to 2 lines instead of clipping long EA names like
+     "SteadyFlow V1.4 x10 TH (Real)". Card has vertical room for wrap. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+.mt5-head strong {
+  color: var(--cc-ink);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .terminal-title span, .terminal-foot { color: var(--cc-dim); }
 .terminal-live { border-color: var(--cc-line-2); }
 .terminal-live.on { color: var(--cc-green); background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.28); }
