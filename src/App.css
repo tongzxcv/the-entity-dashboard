@@ -1950,3 +1950,525 @@ textarea,
     gap: 10px;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   COMMAND-CENTER REFRESH (final layer)
+   Goal: unify every inner page to the same premium direction as login,
+   with restrained cyber/NOC styling. Metrics readable first, glow second.
+   This layer overrides the three stacked NOC passes above it (equal
+   specificity, later source order wins). Pure visual — no behavior changes.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Single accent + restrained palette. Purple/fuchsia demoted. */
+  --cc-bg: #060a14;
+  --cc-ink: #eef3fb;
+  --cc-ink-2: #aebcd6;     /* secondary text */
+  --cc-dim: #7d8eac;       /* tertiary / labels */
+  --cc-line: rgba(120, 144, 182, 0.20);
+  --cc-line-2: rgba(120, 144, 182, 0.30);
+  --cc-accent: #38bdf8;    /* cyan — the one accent */
+  --cc-accent-2: #2dd4bf;  /* teal */
+  --cc-card: rgba(16, 24, 40, 0.92);
+  --cc-card-2: rgba(13, 20, 35, 0.96);
+  --cc-green: #34d399;
+  --cc-amber: #f59e0b;
+  --cc-red: #f87171;
+  --cc-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  --cc-shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.40);
+}
+
+/* Base canvas: calmer, less neon haze */
+body {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.07), transparent 32%),
+    radial-gradient(circle at 86% 8%, rgba(45, 212, 191, 0.05), transparent 30%),
+    var(--cc-bg);
+  color: var(--cc-ink);
+}
+
+.dash {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(56, 189, 248, 0.06), transparent 36%),
+    radial-gradient(circle at 84% 6%, rgba(45, 212, 191, 0.04), transparent 32%),
+    linear-gradient(135deg, #060a14 0%, #08101f 58%, #060912 100%);
+  color: var(--cc-ink);
+}
+
+/* Calm the grid noise way down; sparser + faint */
+.dash::before {
+  opacity: 0.08;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+/* Chrome (sidebar / topbar / mobile nav) keep subtle blur; data cards don't */
+.sb, .tb, .mobile-nav, .mobile-shell-topbar {
+  background: rgba(7, 11, 22, 0.94);
+  border-color: var(--cc-line);
+  backdrop-filter: blur(10px);
+  box-shadow: none;
+}
+.sb { box-shadow: inset -1px 0 0 var(--cc-line); }
+.sb-brand, .sb-foot, .tb, .mobile-shell-topbar { border-color: var(--cc-line); }
+
+/* Topbar neon underline → thin, restrained */
+.tb::after {
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.22), transparent 80%);
+}
+
+/* Brand mark uses the single accent */
+.sb-icon, .app-logo, .login-logo {
+  background: linear-gradient(135deg, var(--cc-accent), var(--cc-accent-2));
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.18);
+}
+
+/* Navigation: readable, not glowing */
+.ni {
+  color: var(--cc-ink-2);
+  border-radius: 0;
+  border-left: 2px solid transparent;
+}
+.ni:hover {
+  color: var(--cc-ink);
+  background: rgba(56, 189, 248, 0.06);
+  box-shadow: none;
+}
+.ni.on {
+  color: var(--cc-ink);
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.12), transparent 70%);
+  border-left-color: var(--cc-accent);
+  box-shadow: none;
+  font-weight: 600;
+}
+.ni svg { opacity: 0.8; }
+.ni.on svg { opacity: 1; color: var(--cc-accent); }
+
+/* ── Unified card system (one look everywhere) ── */
+.sec, .kpi, .rp, .eac, .ea-detail, .broker-filter-card, .period-filter-card,
+.stat, .ac, .logsc, .terminal-card, .mt5-group, .symcard, .responsive-row-card,
+.reporter-status-card, .system-health-card, .alert-kpi, .config-field, .config-box,
+.registry-textarea, .import-report, .dialog-warning, .login-card, .login-brand,
+.kpi-compact, .data-table-shell {
+  background: linear-gradient(160deg, rgba(18, 26, 44, 0.94), rgba(10, 16, 30, 0.94));
+  border: 1px solid var(--cc-line);
+  border-radius: 12px;
+  box-shadow: var(--cc-shadow);
+  backdrop-filter: none;
+}
+.sec:hover, .kpi:hover, .eac:hover, .terminal-card:hover, .symcard:hover,
+.responsive-row-card:hover, .kpi-compact:hover {
+  border-color: var(--cc-line-2);
+  box-shadow: var(--cc-shadow-hover);
+}
+
+/* Inner stat cells share the card substrate */
+.kpi, .stat, .detail-stat-row > div, .eak, .mini-stat, .summary-cell, .eak-full,
+.kpi-compact {
+  background: linear-gradient(160deg, rgba(20, 28, 48, 0.92), rgba(12, 18, 33, 0.92));
+}
+
+/* Section/card borders between header and content */
+.sec-h, .each, .data-table-head, .detail-stat-grid, .detail-stat-row, .card-grid,
+.ops-brief { border-color: var(--cc-line); }
+
+/* ── Typography hierarchy (3 readable tiers) ── */
+.tb-title, .sec-title, .eaname, .ea-detail-title, .tn, .login-title,
+.login-headline, .kpi .kv, .stat strong, .sym-title {
+  color: var(--cc-ink);
+  letter-spacing: 0.01em;
+}
+
+/* Eyebrows / labels — single readable muted tone */
+.tb-eyebrow, .sec-lbl, .kl, .sl, .asl, .eakl, .mini-lbl, .field-label,
+.tb-sec, .login-eyebrow, .login-mini-label {
+  color: var(--cc-dim);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tb-sec { color: var(--cc-dim); }
+.tb-title { font-size: 19px; }
+
+/* Status colors (semantics only) */
+.positive, .pos, .status-live, .ok, .good, .text-profit, .profit,
+.blive, .bbuy { color: var(--cc-green) !important; }
+.negative, .neg, .danger, .text-loss, .loss, .app-notice.danger,
+.bsell { color: var(--cc-red) !important; }
+.warn, .risk-watch, .badge-warning, .medium, .bwarn { color: var(--cc-amber) !important; }
+.accent, .cyan, .link, .mini-action, .ca { color: var(--cc-accent) !important; }
+
+/* Buttons: single primary gradient, restrained */
+.b-acc, .dlbtn, .login-submit, .primary-action, .copy-btn.success {
+  color: #05121f;
+  background: linear-gradient(135deg, var(--cc-accent), var(--cc-accent-2));
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 6px 18px rgba(56, 189, 248, 0.18);
+}
+.b-acc:hover, .dlbtn:hover, .login-submit:hover, .primary-action:hover {
+  filter: brightness(1.06);
+  transform: none;
+}
+
+/* Secondary / input surfaces */
+.b-sec, .b-cmd, .fctl, .period-tab, .brtab, .tab, .input, .select,
+input, select, textarea, .registry-toolbar, .registry-token-row,
+.config-input {
+  background: rgba(14, 20, 36, 0.92);
+  border: 1px solid var(--cc-line);
+  color: var(--cc-ink);
+}
+.b-sec:hover, .b-cmd:hover, .fctl:hover, .period-tab:hover, .brtab:hover, .tab:hover,
+input:focus, select:focus, textarea:focus, .config-input:focus {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.14);
+}
+
+/* Active filter chips: accent, not purple */
+.period-tab.active, .period-tab.on, .period-tab[data-state="active"],
+.brtab.active, .brtab.on, .tab.active, .filter-chip.active, .ftab.on {
+  color: var(--cc-accent);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: none;
+}
+.ftab { border-color: var(--cc-line); color: var(--cc-ink-2); }
+.ftab .fcnt { color: var(--cc-dim); }
+.ftab.on .fcnt { color: var(--cc-accent); }
+
+/* Pills / badges: quieter chrome */
+.pill, .badge, .strategy-pill, .risk-pill, .status-pill, .mini-tag {
+  background: rgba(14, 20, 36, 0.85);
+  border-color: var(--cc-line-2);
+}
+.mini-tag.risk-low { color: var(--cc-green); border-color: rgba(52, 211, 153, 0.3); background: rgba(52, 211, 153, 0.08); }
+.mini-tag.risk-medium { color: var(--cc-amber); border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); }
+.mini-tag.risk-high { color: var(--cc-red); border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.08); }
+.mini-tag.risk-extreme { color: #ff5c8a; border-color: rgba(255, 92, 138, 0.4); background: rgba(255, 92, 138, 0.1); }
+
+/* ── Tables: one consistent treatment across all pages ── */
+.tbl, .data-table, .data-table-shell table {
+  background: transparent;
+}
+.tbl th, .data-table th {
+  color: var(--cc-dim);
+  background: rgba(20, 28, 48, 0.7);
+  border-color: var(--cc-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 600;
+}
+.tbl td, .data-table td, .row, .history-row, .trade-row {
+  border-color: var(--cc-line);
+  color: var(--cc-ink-2);
+}
+.tbl tr:hover td, .data-table tr:hover td, .row:hover,
+.history-row:hover, .trade-row:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+/* Make the bare Logs/Admin/Audit tables consistent with .tbl */
+.data-table-shell table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 0;
+}
+.data-table-shell table th { text-align: left; padding: 10px 14px; }
+
+/* New cell typography hooks (JSX converted) */
+.tm { font-family: 'JetBrains Mono', monospace !important; font-size: 12.5px !important; }
+.tn { font-weight: 600 !important; color: var(--cc-ink) !important; }
+.trade-cell-account { font-weight: 600; color: var(--cc-ink); font-size: 12.5px; }
+.trade-cell-account-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--cc-dim); margin-top: 1px; }
+.trade-cell-ticket { color: var(--cc-dim); }
+.trade-cell-symbol { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--cc-amber); }
+.trade-cell-pnl { font-weight: 600; }
+.cell-muted { color: var(--cc-dim) !important; font-size: 11px !important; }
+.cell-pos { color: var(--cc-green) !important; }
+.cell-neg { color: var(--cc-red) !important; }
+.cell-warn { color: var(--cc-amber) !important; }
+.pnl-cell { font-weight: 600; }
+
+/* ── KPI strips: lift legacy .stat to MetricCard weight ── */
+.stat {
+  position: relative;
+  padding: 14px 15px;
+  border-radius: 11px;
+  box-shadow: var(--cc-shadow);
+}
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--cc-accent);
+  border-radius: 11px 11px 0 0;
+  opacity: 0.7;
+}
+.stat .sl { margin-bottom: 8px; }
+.stat .sv { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: var(--cc-ink); letter-spacing: -0.01em; }
+.stat .sv.g { color: var(--cc-green); }
+.stat .sv.r { color: var(--cc-red); }
+.stat .sv.a { color: var(--cc-accent); }
+.stat .ss { font-size: 10px; color: var(--cc-dim); font-family: 'JetBrains Mono', monospace; margin-top: 5px; }
+
+/* Compact KPI strip + metric cards: same value typography */
+.kpi-compact { border-radius: 11px; }
+.kl-compact { color: var(--cc-dim); }
+.kv-compact { color: var(--cc-ink); }
+.kpi-compact.g .kv-compact { color: var(--cc-green); }
+.kpi-compact.r .kv-compact { color: var(--cc-red); }
+.km-compact { color: var(--cc-dim); }
+
+.kpi { border-radius: 12px; }
+.kpi .kl { color: var(--cc-dim); }
+.kpi .kv { font-family: 'JetBrains Mono', monospace; font-size: 21px; font-weight: 600; color: var(--cc-ink); }
+.kpi .kv.g { color: var(--cc-green); }
+.kpi .kv.r { color: var(--cc-red); }
+.kpi:hover { transform: none; }
+.kbar { opacity: 0.8; }
+
+/* ── Overview page polish ── */
+.ops-brief {
+  border: 1px solid var(--cc-line);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(56, 189, 248, 0.05), transparent 36%),
+    linear-gradient(135deg, rgba(18, 26, 44, 0.96), rgba(10, 16, 30, 0.96));
+  box-shadow: var(--cc-shadow);
+}
+.ops-brief-grid { background: var(--cc-line); }
+.ops-card {
+  background: rgba(16, 24, 40, 0.92);
+  border-color: transparent;
+  box-shadow: none;
+}
+.ops-card:not(:disabled):hover { background: rgba(22, 32, 52, 0.92); transform: none; }
+.ops-card span { color: var(--cc-dim); }
+.ops-card strong { color: var(--cc-ink); }
+.ops-card small { color: var(--cc-ink-2); }
+.ops-card em { color: var(--cc-dim); }
+.ops-card.good { box-shadow: inset 3px 0 0 var(--cc-green); }
+.ops-card.good strong { color: var(--cc-green); }
+.ops-card.warn { box-shadow: inset 3px 0 0 var(--cc-amber); }
+.ops-card.warn strong { color: var(--cc-amber); }
+.ops-card.danger { box-shadow: inset 3px 0 0 var(--cc-red); }
+.ops-card.danger strong { color: var(--cc-red); }
+.ops-card.muted { box-shadow: inset 3px 0 0 var(--cc-dim); }
+.ops-card.muted strong { color: var(--cc-ink-2); }
+
+.period-insight { background: var(--cc-line); border-color: var(--cc-line); }
+.period-insight > div { background: rgba(14, 20, 36, 0.92); }
+.period-insight span { color: var(--cc-dim); }
+.period-insight b { color: var(--cc-ink); }
+
+/* Chart tooltip + wrapper calmer */
+.cwrap { min-height: 200px; }
+.ct {
+  background: rgba(18, 26, 44, 0.96);
+  border: 1px solid var(--cc-line-2);
+  box-shadow: var(--cc-shadow);
+}
+
+/* ── Expert Advisors / EA detail ── */
+.eac { border-radius: 12px; }
+.eac:hover { transform: none; }
+.eac.selected { border-color: rgba(56, 189, 248, 0.55); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2), var(--cc-shadow); }
+.eatop { opacity: 0.85; }
+.eakg-new { background: var(--cc-line); }
+.eak { background: rgba(14, 20, 36, 0.92); }
+.eak-full { background: rgba(14, 20, 36, 0.92); }
+.eakl { color: var(--cc-dim); }
+.eakv { color: var(--cc-ink); line-height: 1.25; }
+.eakv.g { color: var(--cc-green); }
+.eakv.r { color: var(--cc-red); }
+.eakv.y { color: var(--cc-amber); }
+.eaacct, .eabkr { color: var(--cc-ink-2); }
+.ea-detail { border-color: var(--cc-line-2); border-radius: 12px; }
+.ea-detail-title { color: var(--cc-ink); }
+.ea-detail-dd { background: rgba(248, 113, 113, 0.06); border-color: rgba(248, 113, 113, 0.22); }
+.ea-detail-dd strong { color: var(--cc-red); }
+.detail-stat-row > div, .detail-risk-row > div { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.detail-stat-row b, .detail-risk-row b { color: var(--cc-ink); }
+.detail-history { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.detail-day { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.period-card { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.period-card.positive .period-card-head strong { color: var(--cc-green); }
+.period-card.negative .period-card-head strong { color: var(--cc-red); }
+
+/* Performance bars + rankings */
+.perf-fill.positive { background: linear-gradient(90deg, var(--cc-green), var(--cc-accent-2)); }
+.perf-fill.negative { background: linear-gradient(90deg, var(--cc-red), var(--cc-amber)); }
+.rp { border-radius: 12px; }
+.rpl { color: var(--cc-accent); }
+
+/* Heatmap detail chrome */
+.heatmap-detail { background: rgba(12, 18, 32, 0.92); border-color: var(--cc-line); }
+.heatmap-detail-list > div { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.monthly-calendar { background: rgba(12, 18, 32, 0.92); }
+.calendar-head-cell { background: rgba(20, 28, 48, 0.6); color: var(--cc-dim); border-color: var(--cc-line); }
+.calendar-day { border-color: var(--cc-line); }
+.month-detail-grid > div { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+
+/* ── Symbols ── */
+.symcard { border-radius: 12px; padding: 18px 20px; }
+.symname { color: var(--cc-ink); }
+.symval { color: var(--cc-ink); }
+.symbol-bar div { background: var(--cc-line); }
+.symbol-bar i { background: linear-gradient(90deg, var(--cc-accent), var(--cc-accent-2)); }
+.symbol-meta-row span { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); color: var(--cc-ink-2); }
+
+/* ── MT5 Preview / terminal board ── */
+.mt5-card { background: rgba(12, 18, 32, 0.92); border-color: var(--cc-line); }
+.mt5-head { background: rgba(18, 26, 44, 0.92); }
+.mt5-head strong { color: var(--cc-ink); }
+.mt5-head span, .mt5-head-metrics em { color: var(--cc-dim); }
+.mt5-metrics > div { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.mt5-metrics b { color: var(--cc-ink); }
+.mt5-position { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.mt5-group { border-radius: 12px; box-shadow: var(--cc-shadow); }
+.mt5-group.healthy { border-color: rgba(52, 211, 153, 0.32); box-shadow: var(--cc-shadow); }
+.mt5-group.active { border-color: rgba(56, 189, 248, 0.32); box-shadow: var(--cc-shadow); }
+.mt5-group.watch { border-color: rgba(245, 158, 11, 0.36); box-shadow: var(--cc-shadow); }
+.mt5-group.danger { border-color: rgba(248, 113, 113, 0.38); box-shadow: var(--cc-shadow); }
+.mt5-group-head { background: rgba(14, 20, 36, 0.6); border-color: var(--cc-line); }
+.mt5-group-kicker { color: var(--cc-dim); }
+.mt5-group h3 { color: var(--cc-ink); }
+.mt5-group.healthy h3 { color: var(--cc-green); }
+.mt5-group.active h3 { color: var(--cc-accent); }
+.mt5-group.watch h3 { color: var(--cc-amber); }
+.mt5-group.danger h3 { color: var(--cc-red); }
+.mt5-group-stats span, .mt5-group-stats em { color: var(--cc-dim); }
+.mt5-group-stats b { color: var(--cc-ink); }
+.terminal-grid-board { background: radial-gradient(circle at 50% 0, rgba(56, 189, 248, 0.03), transparent 44%); }
+.terminal-card { border-radius: 13px; background: var(--cc-card-2); box-shadow: var(--cc-shadow); }
+.terminal-shell { background: linear-gradient(180deg, rgba(12, 18, 32, 0.96), rgba(7, 11, 22, 0.96)); }
+.terminal-title strong { color: var(--cc-ink); }
+.terminal-title span, .terminal-foot { color: var(--cc-dim); }
+.terminal-live { border-color: var(--cc-line-2); }
+.terminal-live.on { color: var(--cc-green); background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.28); }
+.terminal-live.off { color: var(--cc-amber); background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.28); }
+.terminal-grid { border-color: var(--cc-line); }
+.terminal-grid > div { background: rgba(16, 24, 40, 0.55); }
+.terminal-grid b { color: var(--cc-ink); }
+.terminal-grid span, .terminal-balance span { color: var(--cc-dim); }
+.terminal-balance b { color: var(--cc-ink); }
+.terminal-positions { background: rgba(7, 11, 22, 0.96); }
+.terminal-position { background: rgba(12, 18, 32, 0.92); border-color: var(--cc-line); }
+.broker-logo { background: rgba(18, 26, 44, 0.92); border-color: var(--cc-line-2); }
+
+/* ── History controls ── */
+.history-controls { border-color: var(--cc-line); }
+.history-custom-state { background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.24); color: var(--cc-accent); }
+.history-custom-state.invalid { background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.3); color: var(--cc-red); }
+
+/* ── Reporter ── */
+.reporter-hero { border-radius: 12px; }
+.reporter-grid { gap: 16px; }
+.config-field { border-radius: 12px; }
+.config-box { background: rgba(8, 12, 22, 0.96); border-color: var(--cc-line-2); }
+.config-input { background: transparent; }
+.config-action { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); color: var(--cc-ink-2); }
+.config-action:hover:not(:disabled) { color: var(--cc-accent); background: rgba(20, 30, 50, 0.92); }
+.config-action.copy-ok { color: var(--cc-green); background: rgba(52, 211, 153, 0.12); }
+.config-action.copy-fail { color: var(--cc-red); background: rgba(248, 113, 113, 0.12); }
+.reporter-status-card { border-radius: 12px; }
+.reporter-status-line strong { color: var(--cc-ink); }
+.reporter-status-card p, .reporter-status-card em { color: var(--cc-dim); }
+.reporter-downloads .dlbtn { background: rgba(14, 20, 36, 0.92); color: var(--cc-ink); border-color: var(--cc-line-2); }
+.reporter-downloads .dlbtn.primary { background: linear-gradient(135deg, var(--cc-accent), var(--cc-accent-2)); color: #05121f; }
+.setup-step > span, .trouble-row > span { border-color: rgba(56, 189, 248, 0.45); color: var(--cc-accent); }
+.setup-step strong, .trouble-row strong { color: var(--cc-ink); }
+.setup-step p, .trouble-row p { color: var(--cc-ink-2); }
+
+/* ── System Health ── */
+.logsc { border-radius: 12px; }
+.logsl { color: var(--cc-dim); }
+.logsv { color: var(--cc-ink); }
+.logbar { background: var(--cc-line); }
+.logfill { background: var(--cc-accent); }
+.system-health-card { border-radius: 12px; }
+.system-health-card strong { color: var(--cc-ink); }
+.system-health-card p { color: var(--cc-ink-2); }
+.system-health-card em { color: var(--cc-dim); }
+
+/* ── Admin / License Gate (Account Approval) ── */
+.registry-form { gap: 12px; }
+.registry-form input, .registry-form select { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); color: var(--cc-ink); }
+.registry-token-once { background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.24); }
+.registry-token-value { color: var(--cc-green); }
+.registry-token-row { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.registry-textarea { background: rgba(8, 12, 22, 0.96); border-color: var(--cc-line-2); color: var(--cc-ink); }
+.import-report { background: rgba(56, 189, 248, 0.06); color: var(--cc-ink-2); border-color: var(--cc-line); }
+.dialog-warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.28); color: var(--cc-amber); }
+.app-notice.danger { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.3); color: var(--cc-red); }
+
+/* Responsive row cards (mobile) */
+.responsive-row-card { border-radius: 12px; }
+.responsive-row-body { background: var(--cc-line); }
+.responsive-row-body > div { background: rgba(14, 20, 36, 0.92); }
+.responsive-row-body span { color: var(--cc-dim); }
+.responsive-row-body b { color: var(--cc-ink); }
+.responsive-row-title { color: var(--cc-ink); }
+.responsive-row-sub { color: var(--cc-dim); }
+
+/* Dialogs */
+.modal-backdrop { background: rgba(4, 7, 14, 0.82); backdrop-filter: blur(4px); }
+.name-dialog, .delete-dialog { background: rgba(16, 24, 40, 0.96); }
+.delete-warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.28); }
+.delete-warning strong { color: var(--cc-amber); }
+.delete-account-summary { background: rgba(12, 18, 32, 0.92); border-color: var(--cc-line); }
+
+/* Broker filter + period filter cards */
+.broker-filter-card, .period-filter-card { border-radius: 12px; }
+.broker-filter-head, .period-filter-head { color: var(--cc-dim); }
+.broker-card { background: rgba(14, 20, 36, 0.92); border-color: var(--cc-line); }
+.broker-card:hover { background: rgba(20, 30, 50, 0.92); }
+.broker-card.on { border-color: var(--cc-accent); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2); background: linear-gradient(180deg, rgba(20, 30, 50, 0.96), rgba(14, 22, 40, 0.96)); }
+.broker-name { color: var(--cc-ink); }
+.broker-count { color: var(--cc-dim); }
+
+/* Scroll anchor offset so drill-downs aren't hidden under sticky topbar */
+.dash { scroll-padding-top: 72px; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ni:hover, .eac:hover, .kpi:hover, .sec:hover, .kpi-compact:hover,
+  .terminal-card:hover, .symcard:hover, .responsive-row-card:hover,
+  .stat:hover, .broker-card:hover { transform: none; }
+}
+
+/* ── Mobile: guarantee no horizontal overflow ── */
+@media (max-width: 900px) {
+  .period-insight,
+  .ea-detail-grid,
+  .ea-detail-grid > *,
+  .detail-stat-row,
+  .detail-risk-row,
+  .reporter-grid,
+  .reporter-downloads,
+  .symbol-grid,
+  .symgrid,
+  .mt5-body,
+  .mt5-metrics,
+  .terminal-grid-board,
+  .config-box,
+  .broker-filter-card,
+  .period-filter-card,
+  .kpi-strip-wrap {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere;
+  }
+  .cwrap, .cwrap > svg, .cwrap .recharts-wrapper, .cwrap .recharts-surface {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .stat .sv { font-size: 16px; }
+  .kpi .kv { font-size: 18px; }
+}
+

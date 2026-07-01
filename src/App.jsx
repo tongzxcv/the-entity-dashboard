@@ -2416,11 +2416,11 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
                   <React.Fragment key={row.month}>
                     <tr className="expandable-row" onClick={() => setExpandedMonth((current) => current === row.month ? null : row.month)}>
                     <td data-label="Month" className="tm"><button type="button" className="expand-btn">{expandedMonth === row.month ? '-' : '+'}</button>{row.month}</td>
-                    <td data-label="P&L" className="tm" style={{color:row.pnl>=0?C.grn:C.red,fontWeight:600}}>{fmtS(row.pnl, row.money_context)}</td>
+                    <td data-label="P&L" className="tm pnl-cell" style={{color:row.pnl>=0?C.grn:C.red}}>{fmtS(row.pnl, row.money_context)}</td>
                     <td data-label="Closed Deals" className="tm">{row.trades}</td>
-                    <td data-label="Profitable / Loss Account-Days" className="tm" style={{color:C.grn}}>{row.winDays} / {row.lossDays}</td>
-                    <td data-label="Best" className="tm" style={{color:C.grn}}>{fmtS(row.bestDay || 0, row.money_context)}</td>
-                    <td data-label="Worst" className="tm" style={{color:C.red}}>{fmtS(row.worstDay || 0, row.money_context)}</td>
+                    <td data-label="Profitable / Loss Account-Days" className="tm cell-pos">{row.winDays} / {row.lossDays}</td>
+                    <td data-label="Best" className="tm cell-pos">{fmtS(row.bestDay || 0, row.money_context)}</td>
+                    <td data-label="Worst" className="tm cell-neg">{fmtS(row.worstDay || 0, row.money_context)}</td>
                     </tr>
                     {expandedMonth === row.month ? (
                       <tr className="month-detail-row">
@@ -2883,11 +2883,11 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
                       </div>
                     </td>
                     <td data-label="Account" className="tm">{maskAccountNumber(ea.account_number)}</td>
-                    <td data-label="Broker" style={{color:C.t3,fontSize:11}}>{ea.broker}</td>
+                    <td data-label="Broker" className="tm cell-muted">{ea.broker}</td>
                     <td data-label="Balance" className="tm">{fmtM(ea.balance, false, ea)}</td>
                     <td data-label="Equity" className="tm">{fmtM(ea.equity, false, ea)}</td>
-                    <td data-label="Floating" className="tm" style={{color:pclr(floating)}}>{fmtS(floating, ea)}</td>
-                    <td data-label="Peak DD" className="tm" style={{color:C.yel}}>{formatPercent(maxDrawdown)}</td>
+                    <td data-label="Floating" className="tm pnl-cell" style={{color:pclr(floating)}}>{fmtS(floating, ea)}</td>
+                    <td data-label="Peak DD" className="tm cell-warn">{formatPercent(maxDrawdown)}</td>
                     <td data-label="Closed Lots" className="tm">{fmtLots(accountClosedLots(ea))}</td>
                     <td data-label="Status"><StatusBadge age={age} /></td>
                   </tr>
@@ -3135,15 +3135,15 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
               ) : visibleTrades.map((t, index) => (
                 <TableRow key={`${t.account.account_number}-${t.ticket}`}>
                   <TableCell data-label="EA / Account">
-                    <div style={{ fontWeight:600, color:C.t1, fontSize:12.5 }}>{accountLabel(t.account)}</div>
-                    {isAdmin && <div style={{ fontFamily:C.fn, fontSize:10, color:C.t3, marginTop:1 }}>{maskAccountNumber(t.account.account_number)}</div>}
+                    <div className="trade-cell-account">{accountLabel(t.account)}</div>
+                    {isAdmin && <div className="trade-cell-account-sub">{maskAccountNumber(t.account.account_number)}</div>}
                   </TableCell>
-                  <TableCell data-label={isAdmin ? 'Ticket' : 'Trade'} className="tm" style={{ color:C.t3 }}>{isAdmin ? `#${t.ticket}` : `Trade ${index + 1}`}</TableCell>
-                  <TableCell data-label="Symbol" style={{ fontFamily:C.fn, fontSize:13, fontWeight:600, color:C.yel }}>{t.symbol}</TableCell>
+                  <TableCell data-label={isAdmin ? 'Ticket' : 'Trade'} className="tm trade-cell-ticket">{isAdmin ? `#${t.ticket}` : `Trade ${index + 1}`}</TableCell>
+                  <TableCell data-label="Symbol" className="trade-cell-symbol">{t.symbol}</TableCell>
                   <TableCell data-label="Direction"><Badge className={`badge ${String(t.trade_type).toUpperCase()==="BUY"?"bbuy":"bsell"}`}>{String(t.trade_type).toUpperCase()}</Badge></TableCell>
                   <TableCell data-label="Lots" className="tm">{Number(t.lots).toFixed(2)}</TableCell>
                   {isAdmin && <TableCell data-label="Open Price" className="tm">{Number(t.open_price).toFixed(5)}</TableCell>}
-                  <TableCell data-label="P&L" className="tm" style={{ fontWeight:600, color:pclr(t.profit) }}>{fmtS(t.profit, t.account)}</TableCell>
+                  <TableCell data-label="P&L" className="tm trade-cell-pnl" style={{ color:pclr(t.profit) }}>{fmtS(t.profit, t.account)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -3550,11 +3550,11 @@ function HistoryPage({ accounts, isAdmin = false }) {
                   <TableCell data-label="Date" className="tm">{row.date}</TableCell>
                   <TableCell data-label="EA" className="tn">{row.name}</TableCell>
                   <TableCell data-label="Account" className="tm">{maskAccountNumber(row.account_number)}</TableCell>
-                  <TableCell data-label="Broker" style={{ color:C.t3, fontSize:11 }}>{row.broker}</TableCell>
+                  <TableCell data-label="Broker" className="tm cell-muted">{row.broker}</TableCell>
                   <TableCell data-label="P&L" className="tm"><Badge className={`badge ${row.pnl > 0 ? 'bbuy' : row.pnl < 0 ? 'bsell' : 'bwarn'}`}>{fmtS(row.pnl, row)}</Badge></TableCell>
                   <TableCell data-label="Closed Deals" className="tm">{row.trades}</TableCell>
                   <TableCell data-label="Closed Lots" className="tm">{row.lots.toFixed(2)}</TableCell>
-                  <TableCell data-label="Rebate" className="tm" style={{ color:C.grn }}>{fmtM(row.rebate)}</TableCell>
+                  <TableCell data-label="Rebate" className="tm cell-pos">{fmtM(row.rebate)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
