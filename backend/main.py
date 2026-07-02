@@ -1286,6 +1286,34 @@ async def revoke_agent_token(token_id: int, request: Request):
     return {"ok": True}
 
 
+@app.delete("/api/admin/agent-tokens/{token_id}")
+async def delete_agent_token(token_id: int, request: Request):
+    user = require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM ea_agent_tokens WHERE id = ?", (token_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Agent token not found")
+    # Safety: only allow deleting tokens that are already REVOKED. An ACTIVE
+    # token must be revoked first — this prevents accidental deletion of a
+    # token still in use by live EAs (which would silently break them).
+    if row["status"] != "REVOKED":
+        conn.close()
+        raise HTTPException(status_code=409, detail="Only revoked tokens can be deleted. Revoke first.")
+    cursor.execute("DELETE FROM ea_agent_tokens WHERE id = ?", (token_id,))
+    write_audit(
+        cursor,
+        request,
+        actor=user["username"],
+        actor_role=user["role"],
+        action="DELETE_AGENT_TOKEN",
+        reason=f"deleted agent token: {row['name']}",
+        metadata={"token_id": token_id, "name": row["name"], "status": row["status"]},
+    )
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+
 @app.post("/api/admin/accounts")
 async def create_registry_account(payload: AccountRegistryPayload, request: Request):
     user = require_admin(request)

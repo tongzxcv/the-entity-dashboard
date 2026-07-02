@@ -4009,6 +4009,25 @@ function AgentTokensPanel() {
     }
   }
 
+  const deleteToken = async (token) => {
+    // Safety: confirm before permanent deletion (hard delete — row + audit
+    // record vanish from the token table; account_audit_log keeps the
+    // history by actor/reason).
+    const confirmText = `Permanently delete token "${token.name}"?\n\nThis removes the token row. The token is already revoked so no live EA depends on it. Audit history of the deletion is kept in the account audit log.`
+    if (!window.confirm(confirmText)) return
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens/${token.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Delete token API ${response.status}`)
+      await loadTokens()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <Card className="sec">
       <CardHeader className="sec-h">
@@ -4044,6 +4063,7 @@ function AgentTokensPanel() {
               <div className="registry-actions">
                 <Badge className={`badge ${token.status === 'ACTIVE' ? 'blive' : 'bsell'}`}>{token.status}</Badge>
                 {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => revokeToken(token)}>Revoke</Button> : null}
+                {token.status === 'REVOKED' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => deleteToken(token)}>{Ico.trash} Delete</Button> : null}
               </div>
             </div>
           ))}
