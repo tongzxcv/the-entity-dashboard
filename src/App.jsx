@@ -1538,7 +1538,7 @@ function RebateSummaryCard({ accounts }) {
       <div className="rebate-mini">
         {(rebate.hasData ? rebate.rows.slice(0, 3) : accounts.slice(0, 3).map((account) => ({ account, rebate: 0, lots: accountClosedLots(account) || 0, rate: accountRebateRate(account) }))).map((row) => (
           <div key={row.account.account_number}>
-            <span>{accountLabel(row.account)} · {Number(row.lots || 0).toFixed(2)} lots</span>
+            <span style={{overflow:'hidden', whiteSpace:'normal', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflowWrap:'anywhere', lineHeight:1.2}}>{accountLabel(row.account)} · {Number(row.lots || 0).toFixed(2)} lots</span>
             <b>{rebate.hasData ? fmtM(row.rebate) : `$${Number(row.rate || DEFAULT_REBATE_PER_LOT).toFixed(2)}/lot`}</b>
           </div>
         ))}
@@ -2812,7 +2812,7 @@ function AdvisorsPage({ accounts, snapshots, onEditName, onDeleteAccount, isAdmi
               <CardHeader className="each p-0">
                 <div style={{minWidth:0, paddingRight:10}}>
                   <div className="eaname" style={{display:'flex', alignItems:'center', gap:6}}>
-                    <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{accountLabel(ea)}</span>
+                    <span style={{overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflowWrap:'anywhere', lineHeight:1.2}}>{accountLabel(ea)}</span>
                     {renderAdminActions(ea)}
                   </div>
                   <div className="eaacct">{maskAccountNumber(ea.account_number)}</div>

@@ -2826,6 +2826,48 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
   padding: 24px 16px;
 }
 
+/* ── Ranking/portfolio rows: long EA names wrap to 2 lines instead of
+   overflowing the middle column. Affects Overview + Advisors perf rows. ── */
+.pn {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+  font-size: 13px;
+}
+.pb { color: var(--cc-dim, #7d8eac); }
+.perf-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+/* EA card name span (inline nowrap in JSX) — let it wrap to 2 lines so
+   long names like 'SteadyFlow V1.4 x10 TH (Real)' don't overflow. */
+.eaname span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+
+/* Rebate mini rows (Overview right rail) — allow the label span to shrink
+   so 'EA name · lots' ellipsises instead of overflowing the card. */
+.rebate-mini > div { min-width: 0; }
+.rebate-mini span { min-width: 0; }
+
 /* ── Command palette active item (arrow-key nav) ── */
 .command-item-active {
   border-color: rgba(56, 189, 248, 0.45) !important;
