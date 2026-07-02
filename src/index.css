@@ -32,25 +32,27 @@
 :root {
   color-scheme: dark;
   --radius: 0.5rem;
-  --background: #050714;
-  --foreground: #F4F7FF;
-  --card: #0B1024;
-  --card-foreground: #F4F7FF;
-  --popover: #0E1330;
-  --popover-foreground: #F4F7FF;
-  --primary: #18D8FF;
-  --primary-foreground: #06101F;
-  --secondary: #171235;
-  --secondary-foreground: #DDE6FF;
-  --muted: #151B35;
-  --muted-foreground: #9AA7C7;
-  --accent: #8B5CF6;
-  --accent-foreground: #FFFFFF;
-  --destructive: #FF4D8D;
-  --destructive-foreground: #FFFFFF;
-  --border: #2A2F55;
-  --input: #101831;
-  --ring: #B46CFF;
+  /* Synced to the command-center (--cc-*) single-accent palette so shadcn
+     primitives (Dialog/Sheet/Select/Tooltip) match the bespoke dashboard. */
+  --background: #060a14;
+  --foreground: #eef3fb;
+  --card: #0f1828;
+  --card-foreground: #eef3fb;
+  --popover: #131d31;
+  --popover-foreground: #eef3fb;
+  --primary: #38bdf8;          /* cyan — the one accent */
+  --primary-foreground: #05121f;
+  --secondary: #1a2540;
+  --secondary-foreground: #aebcd6;
+  --muted: #161f38;
+  --muted-foreground: #7d8eac;
+  --accent: #2dd4bf;           /* teal — paired accent, demoted purple */
+  --accent-foreground: #05121f;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+  --border: #2a3551;
+  --input: #101a30;
+  --ring: #38bdf8;
 }
 
 * {
@@ -62,20 +64,20 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background:
-    radial-gradient(circle at 12% 0%, rgba(139, 92, 246, 0.18), transparent 34%),
-    radial-gradient(circle at 88% 12%, rgba(24, 216, 255, 0.12), transparent 30%),
-    #050714;
-  color: #F4F7FF;
+    radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.07), transparent 32%),
+    radial-gradient(circle at 86% 8%, rgba(45, 212, 191, 0.05), transparent 30%),
+    #060a14;
+  color: #eef3fb;
   line-height: 1.6;
 }
 
 a {
-  color: #18D8FF;
+  color: #38bdf8;
   text-decoration: none;
 }
 
 a:hover {
-  color: #B46CFF;
+  color: #2dd4bf;
 }
 
 button {
@@ -83,21 +85,21 @@ button {
   cursor: pointer;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling — single accent, demoted purple */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #070A18;
+  background: #0a1020;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #8B5CF6, #18D8FF);
+  background: linear-gradient(180deg, #38bdf8, #2dd4bf);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #B46CFF, #28F5E6);
+  background: linear-gradient(180deg, #56ccf9, #5eead4);
 }

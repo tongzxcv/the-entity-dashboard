@@ -20,16 +20,21 @@ const REPORTER_PATH = '/mt5/MT5DashboardReporter.mq5'
 const REPORTER_EX5_PATH = '/mt5/MT5DashboardReporter.ex5'
 const DEFAULT_REBATE_PER_LOT = 10
 const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))
+import AnimatedValue from '@/components/AnimatedValue'
 
 // โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+// ── DESIGN TOKENS ───────────────────────────────────────────────────────────
+// Synced to the command-center (--cc-*) CSS palette so every inline color
+// (chart stroke, KPI tint, badge, svg) matches the CSS-themed dashboard.
+// Change here → all ~86 inline C.* call sites follow automatically.
 const C = {
-  bg0:"#080C14", bg1:"#0C1220", bg2:"#111926", bg3:"#172433", bg4:"#1E2D40",
-  br0:"rgba(200,218,238,0.08)", br1:"rgba(200,218,238,0.14)", br2:"rgba(200,218,238,0.22)",
-  acc:"#4E9F96", accD:"rgba(78,159,150,0.11)", accG:"rgba(78,159,150,0.20)",
-  grn:"#3DD68C", grnD:"rgba(61,214,140,0.12)",
-  red:"#F0607A", redD:"rgba(240,96,122,0.12)",
-  blu:"#6EAFF2", yel:"#E5A84B",
-  t1:"#F0F4FA", t2:"#A8BDCF", t3:"#738DA8",
+  bg0:"#060a14", bg1:"#0a1020", bg2:"#0f1828", bg3:"#131d31", bg4:"#1a2540",
+  br0:"rgba(120,144,182,0.18)", br1:"rgba(120,144,182,0.24)", br2:"rgba(120,144,182,0.32)",
+  acc:"#38bdf8", accD:"rgba(56,189,248,0.11)", accG:"rgba(56,189,248,0.20)",
+  grn:"#34d399", grnD:"rgba(52,211,153,0.12)",
+  red:"#f87171", redD:"rgba(248,113,113,0.12)",
+  blu:"#60a5fa", yel:"#f59e0b",
+  t1:"#eef3fb", t2:"#aebcd6", t3:"#7d8eac",
   fn:"'JetBrains Mono',monospace",
   fh:"'Chakra Petch',sans-serif",
   fb:"'Outfit',sans-serif",
@@ -1854,11 +1859,13 @@ function AttentionRequired({ accounts, snapshots = [] }) {
 
 function MetricCard({ label, value, tone = '', bar, meta, compact = false }) {
   const badgeVariant = tone === 'r' ? 'loss' : tone === 'g' ? 'profit' : 'secondary'
+  // tone g/r → pnl flash (green up / red down); plain otherwise.
+  const valueTone = tone === 'g' || tone === 'r' ? 'pnl' : 'plain'
   if (compact) {
     return (
       <div className={`kpi-compact ${tone}`}>
         <span className="kl-compact">{label}</span>
-        <strong className="kv-compact">{value}</strong>
+        <strong className="kv-compact"><AnimatedValue value={value} tone={valueTone} /></strong>
         <span className="km-compact">{meta}</span>
       </div>
     )
@@ -1868,7 +1875,7 @@ function MetricCard({ label, value, tone = '', bar, meta, compact = false }) {
       <div className="kbar" style={{ background: bar }} />
       <CardContent className="kpi-content">
         <div className="kl">{label}</div>
-        <div className={`kv ${tone}`}>{value}</div>
+        <div className={`kv ${tone}`}><AnimatedValue value={value} tone={valueTone} /></div>
         <Badge variant={badgeVariant} className="km">{meta}</Badge>
       </CardContent>
     </Card>
@@ -2138,7 +2145,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
         </div>
         <div>
           <span>Period P&L</span>
-          <b style={{ color:periodWaiting ? C.t3 : pclr(stats.selectedPnl) }}>{periodWaiting ? 'Waiting for date range' : fmtS(stats.selectedPnl, portfolioMoneyContext)}</b>
+          <b style={{ color:periodWaiting ? C.t3 : pclr(stats.selectedPnl) }}>{periodWaiting ? 'Waiting for date range' : <AnimatedValue value={fmtS(stats.selectedPnl, portfolioMoneyContext)} tone="pnl" />}</b>
         </div>
         <div>
           <span>Closed Deals / Lots</span>
@@ -2204,7 +2211,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             <div className="sec-h">
               <div>
                 <div className="sec-lbl">Equity Curve</div>
-                <div className="sec-title">{mappedEquity.length > 0 ? fmtM(mappedEquity[mappedEquity.length - 1].v, false, portfolioMoneyContext) : "$0.00"}</div>
+                <div className="sec-title">{mappedEquity.length > 0 ? <AnimatedValue value={fmtM(mappedEquity[mappedEquity.length - 1].v, false, portfolioMoneyContext)} /> : "$0.00"}</div>
               </div>
               <div className="tbts">
                 {["1H","6H","24H","7D","30D","ALL"].map(t => (
@@ -3065,7 +3072,7 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
       <div className="history-summary">
         <div className="stat"><div className="sl">Visible Trades</div><div className="sv">{visibleTrades.length}</div><div className="ss">after filters</div></div>
         <div className="stat"><div className="sl">Open Lots</div><div className="sv">{tradeSummary.lots.toFixed(2)}</div><div className="ss">combined exposure</div></div>
-        <div className="stat"><div className="sl">Floating P&L</div><div className={`sv ${tradeSummary.pnl >= 0 ? 'g' : 'r'}`}>{fmtS(tradeSummary.pnl)}</div><div className="ss">open positions</div></div>
+        <div className="stat"><div className="sl">Floating P&L</div><div className={`sv ${tradeSummary.pnl >= 0 ? 'g' : 'r'}`}><AnimatedValue value={fmtS(tradeSummary.pnl)} tone="pnl" /></div><div className="ss">open positions</div></div>
         <div className="stat"><div className="sl">Buy / Sell</div><div className="sv">{tradeSummary.buy} / {tradeSummary.sell}</div><div className="ss">direction mix</div></div>
         <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
       </div>
@@ -3293,9 +3300,9 @@ function MT5PreviewPage({ accounts, snapshots = [], lastUpdate = null }) {
   return (
     <>
       <div className="history-summary">
-        <div className="stat"><div className="sl">Balance</div><div className="sv">{fmtM(totalBalance)}</div><div className="ss">all previewed ports</div></div>
-        <div className="stat"><div className="sl">Equity</div><div className="sv">{fmtM(totalEquity)}</div><div className="ss">live equity</div></div>
-        <div className="stat"><div className="sl">Floating</div><div className={`sv ${totalEquity - totalBalance >= 0 ? 'g' : 'r'}`}>{fmtS(totalEquity - totalBalance)}</div><div className="ss">open P&L</div></div>
+        <div className="stat"><div className="sl">Balance</div><div className="sv"><AnimatedValue value={fmtM(totalBalance)} /></div><div className="ss">all previewed ports</div></div>
+        <div className="stat"><div className="sl">Equity</div><div className="sv"><AnimatedValue value={fmtM(totalEquity)} /></div><div className="ss">live equity</div></div>
+        <div className="stat"><div className="sl">Floating</div><div className={`sv ${totalEquity - totalBalance >= 0 ? 'g' : 'r'}`}><AnimatedValue value={fmtS(totalEquity - totalBalance)} tone="pnl" /></div><div className="ss">open P&L</div></div>
         <div className="stat"><div className="sl">Positions / Lots</div><div className="sv a">{totalPositions} / {totalLots.toFixed(2)}</div><div className="ss">MT5 exposure</div></div>
         <DataFreshnessStat accounts={accounts} lastUpdate={lastUpdate} />
       </div>

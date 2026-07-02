@@ -2708,3 +2708,135 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
   white-space: normal;
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM MOTION LAYER
+   Motion tokens + AnimatedValue (count-up/flash) + card lift + focus rings.
+   Stdlib only (requestAnimationFrame). All gated behind prefers-reduced-motion.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --dur-fast: 0.12s;
+  --dur: 0.2s;
+  --dur-slow: 0.32s;
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── AnimatedValue: count-up wrapper + flash-on-delta ── */
+.av {
+  display: inline;
+  font-variant-numeric: tabular-nums;
+  transition: text-shadow var(--dur-slow) var(--ease-premium);
+}
+.av-flash-up {
+  text-shadow: 0 0 14px rgba(52, 211, 153, 0.55);
+}
+.av-flash-down {
+  text-shadow: 0 0 14px rgba(248, 113, 113, 0.55);
+}
+.av-flash-accent {
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
+}
+
+/* ── Card lift on hover (reintroduced, gated behind reduced-motion) ── */
+.sec, .kpi, .eac, .kpi-compact, .symcard, .terminal-card, .responsive-row-card,
+.stat, .broker-card, .rp {
+  transition: border-color var(--dur) var(--ease-premium),
+              box-shadow var(--dur) var(--ease-premium),
+              transform var(--dur) var(--ease-premium);
+}
+.kpi:hover, .kpi-compact:hover, .eac:hover, .stat:hover, .broker-card:hover {
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi:hover, .kpi-compact:hover, .eac:hover, .stat:hover, .broker-card:hover {
+    transform: none;
+  }
+}
+
+/* ── Focus-visible rings on bespoke interactive elements ── */
+.ni:focus-visible, .broker-card:focus-visible, .brtab:focus-visible,
+.pi:focus-visible, .tbt:focus-visible, .calendar-day:focus-visible,
+.eac:focus-visible, .hmc:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 1px;
+}
+
+/* ── Refresh feedback: top progress bar + spinning sync ── */
+.refresh-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cc-accent, #38bdf8), var(--cc-accent-2, #2dd4bf), transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: refresh-sweep 0.9s var(--ease-premium) forwards;
+  z-index: 30;
+  pointer-events: none;
+}
+@keyframes refresh-sweep {
+  from { background-position: -50% 0; opacity: 0; }
+  20%  { opacity: 1; }
+  to   { background-position: 150% 0; opacity: 0; }
+}
+.sync-spin svg {
+  animation: sync-rotate 0.8s linear infinite;
+}
+@keyframes sync-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* ── EmptyState component ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--cc-dim, #7d8eac);
+}
+.empty-state-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  color: var(--cc-accent, #38bdf8);
+}
+.empty-state-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.empty-state-title {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 14px;
+  color: var(--cc-ink, #eef3fb);
+}
+.empty-state-msg {
+  font-size: 12px;
+  color: var(--cc-dim, #7d8eac);
+  max-width: 340px;
+  line-height: 1.5;
+}
+/* Table-cell variant keeps table layout (replaces empty-table-cell usage) */
+.empty-state.cell {
+  padding: 24px 16px;
+}
+
+/* ── Reduced-motion: cover refresh/flash/chart ── */
+@media (prefers-reduced-motion: reduce) {
+  .refresh-bar, .sync-spin svg {
+    animation: none;
+  }
+  .av {
+    transition: none;
+    text-shadow: none !important;
+  }
+  .av-flash-up, .av-flash-down, .av-flash-accent {
+    text-shadow: none !important;
+  }
+}
+
