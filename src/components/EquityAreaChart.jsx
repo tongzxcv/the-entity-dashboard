@@ -29,7 +29,7 @@ export default function EquityAreaChart({ width, height, data, accentColor, mute
         domain={['auto', 'auto']}
       />
       <RechartsTooltip content={<ChartTooltip />} />
-      <Area type="monotone" dataKey="v" stroke={accentColor} strokeWidth={1.5} fill="url(#equity-area-gradient)" dot={false} />
+      <Area type="monotone" dataKey="v" stroke={accentColor} strokeWidth={1.5} fill="url(#equity-area-gradient)" dot={false} isAnimationActive animationDuration={700} animationEasing="ease-out" />
     </AreaChart>
   )
 }

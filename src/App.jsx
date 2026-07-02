@@ -21,6 +21,7 @@ const REPORTER_EX5_PATH = '/mt5/MT5DashboardReporter.ex5'
 const DEFAULT_REBATE_PER_LOT = 10
 const EquityAreaChart = React.lazy(() => import('@/components/EquityAreaChart'))
 import AnimatedValue from '@/components/AnimatedValue'
+import EmptyState from '@/components/EmptyState'
 
 // โ”€โ”€ DESIGN TOKENS โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 // ── DESIGN TOKENS ───────────────────────────────────────────────────────────
@@ -1274,8 +1275,9 @@ function DeleteAccountDialog({ account, confirmation, onConfirmationChange, onCa
 
 function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }) {
   const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
   useEffect(() => {
-    if (open) setQuery('')
+    if (open) { setQuery(''); setActive(0) }
   }, [open])
 
   const actions = useMemo(() => {
@@ -1306,14 +1308,28 @@ function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }
     return needle.includes(query.trim().toLowerCase())
   }).slice(0, 10)
 
+  // Reset active index whenever the filtered list changes (typing/search).
+  useEffect(() => { setActive(0) }, [query])
+
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') { onClose(); return }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActive((i) => Math.min(i + 1, Math.max(0, filtered.length - 1)))
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActive((i) => Math.max(i - 1, 0))
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        const target = filtered[active]
+        if (target) runAction(target)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, open])
+  }, [onClose, open, filtered, active])
 
   if (!open) return null
   const runAction = (action) => {
@@ -1342,15 +1358,21 @@ function CommandPalette({ open, onClose, onNavigate, onSync, isAdmin, accounts }
         <div className="command-list">
           {filtered.length === 0 ? (
             <div className="command-empty">No matching command.</div>
-          ) : filtered.map((action) => (
-            <button key={action.id} type="button" className="command-item" onClick={() => runAction(action)}>
+          ) : filtered.map((action, index) => (
+            <button
+              key={action.id}
+              type="button"
+              className={cn('command-item', index === active && 'command-item-active')}
+              onMouseEnter={() => setActive(index)}
+              onClick={() => runAction(action)}
+            >
               <span>{action.label}</span>
               <small>{action.meta}</small>
             </button>
           ))}
         </div>
         <div className="command-foot">
-          <span>Ctrl/⌘ + K</span>
+          <span>Ctrl/⌘ + K · ↑↓ · Enter</span>
           <em>{isAdmin ? 'Admin mode' : 'Demo mode'}</em>
         </div>
       </div>
@@ -1581,7 +1603,7 @@ function RiskDeskPage({ accounts, snapshots }) {
             <thead><tr><th>EA</th><th>Risk</th><th>Current DD</th><th>Open</th><th>Open Lots</th><th>Floating</th><th>Data</th><th>Action</th></tr></thead>
             <tbody>
               {riskRows.length === 0 ? (
-                <tr><td colSpan="8" style={{ textAlign:'center', color:C.t3, padding:20 }}>No accounts to monitor.</td></tr>
+                <tr><td colSpan="8"><EmptyState variant="cell" title="No accounts to monitor" /></td></tr>
               ) : riskRows.map((row) => (
                 <tr key={row.account.account_number}>
                   <td>
@@ -1948,7 +1970,7 @@ function ActivityTimeline({ accounts, snapshots = [], isAdmin }) {
     return (
       <div className="rp">
         <div className="rpl">Activity Feed</div>
-        <div style={{ padding: 10, color: C.t3, fontSize: 11, textAlign: 'center' }}>No activities logged yet.</div>
+        <EmptyState title="No activities logged yet" />
       </div>
     )
   }
@@ -2242,7 +2264,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               </div>
               <span className="chip ca">{rankings.length} ranked</span>
             </div>
-            {rankings.length === 0 ? <div style={{padding:20, color:C.t3, fontSize:12, textAlign:'center'}}>No ranking data available yet.</div> : null}
+            {rankings.length === 0 ? <EmptyState title="No ranking data available yet" /> : null}
             {rankings.length > 0 ? (
               <div className="perf-bars">
                 {rankings.slice(0, 8).map((p, idx) => {
@@ -2414,7 +2436,7 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
           </div>
           <span className="chip cd">{monthlyRows.length} months</span>
         </div>
-        {monthlyRows.length === 0 ? <div style={{padding:20, color:C.t3, fontSize:12, textAlign:'center'}}>No monthly data available.</div> : (
+        {monthlyRows.length === 0 ? <EmptyState title="No monthly data available" /> : (
           <div style={{overflowX:'auto'}}>
             <table className="tbl">
               <thead><tr><th>Month</th><th>P&L</th><th>Closed Deals</th><th>Profitable / Loss Account-Days</th><th>Best</th><th>Worst</th></tr></thead>
@@ -2941,7 +2963,7 @@ function SymbolsPage({ symbols }) {
           </div>
         </CardHeader>
         <CardContent className="symbol-grid p-0">
-          {visibleSymbols.length === 0 ? <div style={{color:C.t3, fontSize:13}}>No open exposure.</div> : visibleSymbols.map(sym => (
+          {visibleSymbols.length === 0 ? <EmptyState title="No open exposure" tone="success" /> : visibleSymbols.map(sym => (
             <Card className="symcard" key={sym.symbol}>
               <CardHeader className="symrow p-0">
                 <CardTitle className="symname">{sym.symbol}</CardTitle>
@@ -3133,10 +3155,7 @@ function TradesPage({ accounts, isAdmin = false, lastUpdate = null }) {
               {visibleTrades.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={isAdmin ? 7 : 6} className="empty-table-cell">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.t3 }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.grn} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      <span>No open exposure. All EAs are idle.</span>
-                    </div>
+                    <EmptyState variant="cell" title="No open exposure" message="All EAs are idle." tone="success" />
                   </TableCell>
                 </TableRow>
               ) : visibleTrades.map((t, index) => (
@@ -4429,6 +4448,8 @@ export default function App() {
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const [brokerFilter, setBrokerFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -4484,6 +4505,7 @@ export default function App() {
   }, [])
 
   const fetchDashboard = useCallback(async () => {
+    setRefreshing(true)
     try {
       const response = await fetch(`${API_URL}/api/dashboard`, { headers: { 'Content-Type': 'application/json' }, credentials: 'include' })
       if (response.status === 401) { setUser(null); setData(null); return }
@@ -4496,6 +4518,9 @@ export default function App() {
       setError(err.message)
     } finally {
       setLoading(false)
+      setRefreshing(false)
+      // bump key so the progress bar re-triggers its one-shot animation.
+      setRefreshKey((k) => k + 1)
     }
   }, [])
 
@@ -4772,6 +4797,7 @@ export default function App() {
 
         {/* Main */}
         <div className="main">
+          {refreshing && <div key={refreshKey} className="refresh-bar" aria-hidden="true" />}
           <div className="tb">
             <div className="tb-l">
               <span className="tb-sec">The Entity</span>
@@ -4843,7 +4869,7 @@ export default function App() {
                 </label>
               )}
               {isAdmin && (
-                <Button data-shell-action className="h-8 bg-primary px-3 text-primary-foreground hover:bg-primary/90" onClick={syncNow}>
+                <Button data-shell-action className={cn('h-8 bg-primary px-3 text-primary-foreground hover:bg-primary/90', refreshing && 'sync-spin')} onClick={syncNow}>
                   {Ico.sync} Sync
                 </Button>
               )}

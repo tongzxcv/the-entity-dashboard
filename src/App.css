@@ -2826,6 +2826,13 @@ input:focus, select:focus, textarea:focus, .config-input:focus {
   padding: 24px 16px;
 }
 
+/* ── Command palette active item (arrow-key nav) ── */
+.command-item-active {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  background: rgba(56, 189, 248, 0.1) !important;
+  box-shadow: inset 3px 0 0 var(--cc-accent, #38bdf8);
+}
+
 /* ── Reduced-motion: cover refresh/flash/chart ── */
 @media (prefers-reduced-motion: reduce) {
   .refresh-bar, .sync-spin svg {
