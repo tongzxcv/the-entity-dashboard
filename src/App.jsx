@@ -2255,51 +2255,6 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               ) : null}
             </div>
           </div>
-
-          <div className="sec">
-            <div className="sec-h">
-              <div>
-                <div className="sec-lbl">EA Performance Comparison</div>
-                <div className="sec-title">Top Portfolios</div>
-              </div>
-              <span className="chip ca">{rankings.length} ranked</span>
-            </div>
-            {rankings.length === 0 ? <EmptyState title="No ranking data available yet" /> : null}
-            {rankings.length > 0 ? (
-              <div className="perf-bars">
-                {rankings.slice(0, 8).map((p, idx) => {
-                  const positive = p.returnPct >= 0
-                  return (
-                    <div className="perf-row" key={`perf-${p.account.account_number}`}>
-                      <div className="perf-name"><span>{idx + 1}</span>{accountLabel(p.account)}</div>
-                      <div className="perf-track">
-                        <div
-                          className={`perf-fill ${positive ? 'positive' : 'negative'}`}
-                          style={{ width: `${Math.max(2, (Math.abs(p.returnPct) / maxReturn) * 100).toFixed(1)}%` }}
-                        />
-                      </div>
-                      <div className="perf-value" style={{ color: positive ? C.grn : C.red }}>{p.returnPct.toFixed(1)}%</div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : null}
-            {rankings.slice(0, 5).map((p, idx) => (
-              <div className="pi" key={p.account.account_number}>
-                <div className={`rk r${idx+1 < 4 ? idx+1 : 4}`}>{idx+1}</div>
-                <div className="pif">
-                  <div className="pn">{accountLabel(p.account)}</div>
-                  <div className="pb">{p.account.broker || 'Unknown broker'}</div>
-                </div>
-                <div className="pst">
-                  <div className="ppct">{p.returnPct.toFixed(2)}%</div>
-                  <div className="pbar"><div className="pfill" style={{ width:`${Math.min(100, (p.returnPct/Math.max(1, rankings[0].returnPct))*100).toFixed(1)}%` }} /></div>
-                  <div className="ppnl">{fmtS(p.closedProfit)}</div>
-                  <div className="pwin">{p.winRate.toFixed(0)}% profitable account-days</div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div>
@@ -2472,6 +2427,51 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             </table>
           </div>
         )}
+      </div>
+
+      <div className="sec">
+        <div className="sec-h">
+          <div>
+            <div className="sec-lbl">EA Performance Comparison</div>
+            <div className="sec-title">Top Portfolios</div>
+          </div>
+          <span className="chip ca">{rankings.length} ranked</span>
+        </div>
+        {rankings.length === 0 ? <EmptyState title="No ranking data available yet" /> : null}
+        {rankings.length > 0 ? (
+          <div className="perf-bars">
+            {rankings.slice(0, 8).map((p, idx) => {
+              const positive = p.returnPct >= 0
+              return (
+                <div className="perf-row" key={`perf-${p.account.account_number}`}>
+                  <div className="perf-name"><span>{idx + 1}</span>{accountLabel(p.account)}</div>
+                  <div className="perf-track">
+                    <div
+                      className={`perf-fill ${positive ? 'positive' : 'negative'}`}
+                      style={{ width: `${Math.max(2, (Math.abs(p.returnPct) / maxReturn) * 100).toFixed(1)}%` }}
+                    />
+                  </div>
+                  <div className="perf-value" style={{ color: positive ? C.grn : C.red }}>{p.returnPct.toFixed(1)}%</div>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+        {rankings.slice(0, 5).map((p, idx) => (
+          <div className="pi" key={p.account.account_number}>
+            <div className={`rk r${idx+1 < 4 ? idx+1 : 4}`}>{idx+1}</div>
+            <div className="pif">
+              <div className="pn">{accountLabel(p.account)}</div>
+              <div className="pb">{p.account.broker || 'Unknown broker'}</div>
+            </div>
+            <div className="pst">
+              <div className="ppct">{p.returnPct.toFixed(2)}%</div>
+              <div className="pbar"><div className="pfill" style={{ width:`${Math.min(100, (p.returnPct/Math.max(1, rankings[0].returnPct))*100).toFixed(1)}%` }} /></div>
+              <div className="ppnl">{fmtS(p.closedProfit)}</div>
+              <div className="pwin">{p.winRate.toFixed(0)}% profitable account-days</div>
+            </div>
+          </div>
+        ))}
       </div>
     </>
   )
