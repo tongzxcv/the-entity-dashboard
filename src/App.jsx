@@ -2281,15 +2281,8 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
                   </div>
                 ))}
               </div>
-              <div className="rp">
-                <div className="rpl">Last Dashboard Sync</div>
-                <div style={{ fontFamily:C.fn, fontSize:18, fontWeight:600, color:C.t1, marginTop:4 }}>{lastUpdate ? lastUpdate.toLocaleTimeString() : 'Waiting'}</div>
-              </div>
             </>
           )}
-          <ActivityTimeline accounts={filteredAccounts} snapshots={snapshots} isAdmin={isAdmin} />
-          <WeekendExposureCard accounts={filteredAccounts} compact />
-          {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
         </div>
       </div>
 
@@ -2472,6 +2465,12 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="overview-rail-bottom">
+        <ActivityTimeline accounts={filteredAccounts} snapshots={snapshots} isAdmin={isAdmin} />
+        <WeekendExposureCard accounts={filteredAccounts} compact />
+        {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
       </div>
     </>
   )

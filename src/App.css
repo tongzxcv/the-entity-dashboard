@@ -1980,20 +1980,33 @@ textarea,
   /* Right-rail cards tile across 3 columns in the second row. */
   .ov > div:last-child {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 9px;
     align-items: start;
   }
   .ov > div:last-child > .rp { margin-bottom: 0; }
-  /* Cap the Activity Feed (was 790px tall — the dominant cause of the
-     oversized .ov). Show ~5 items, scroll the rest. */
-  .ov .timeline-rp .timeline-list {
-    max-height: 280px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-  /* Weekend exposure card can also be long; cap it. */
-  .ov .rp.weekend-card { max-height: 320px; overflow-y: auto; }
+}
+
+/* Activity Feed / Weekend / Rebate moved to the bottom of Overview as a
+   3-column grid (out of the .ov rail, which now holds only the compact
+   Data Freshness + Server Health cards next to the chart). */
+.overview-rail-bottom {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 9px;
+  align-items: start;
+  margin-bottom: 9px;
+}
+.overview-rail-bottom > .rp,
+.overview-rail-bottom > .timeline-rp { margin-bottom: 0; }
+.overview-rail-bottom .timeline-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.overview-rail-bottom .rp.weekend-card { max-height: 360px; overflow-y: auto; }
+@media (max-width: 900px) {
+  .overview-rail-bottom { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Account currency summary cards: stop them collapsing too narrow and
