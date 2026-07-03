@@ -1951,37 +1951,49 @@ textarea,
   }
 }
 
-/* ── Overview layout balance: prevent the right-side rail from towering
-   over a short left column (which left big whitespace under the chart).
-   On wide screens the chart/perf area and the rail now align to the top
-   and stretch; the equity curve fills available height instead of
-   collapsing to a thin strip with empty space beneath it. ── */
+/* ── Overview layout: chart on top full-width, rail cards below in a
+   dense multi-column grid. Previously the chart (col1, ~595px) sat next
+   to the rail (col2, ~1070px) in a 2-col grid, forcing .ov to 1671px and
+   leaving ~1000px of whitespace under the chart. Now col1 spans full
+   width on row 1, col2 cards tile across 3 columns on row 2. ── */
 @media (min-width: 901px) {
   .ov {
-    grid-template-columns: minmax(0, 1fr) 280px;
-    align-items: stretch;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
   }
+  /* Chart + perf-bars span full width on the first row. */
   .ov > div:first-child {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
   }
-  .ov > div:first-child > .sec { flex: 1 1 auto; }
-  /* Let the equity curve section grow so it fills the column height instead
-     of leaving whitespace when the right rail is taller. */
   .ov > div:first-child > .sec:first-child {
     display: flex;
     flex-direction: column;
   }
   .ov > div:first-child > .sec:first-child > .cwrap {
-    flex: 1 1 auto;
-    min-height: 240px;
-  }
-  .ov > div:first-child > .sec:last-child {
     flex: 0 0 auto;
+    min-height: 240px;
+    max-height: 360px;
   }
+  /* Right-rail cards tile across 3 columns in the second row. */
+  .ov > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    align-items: start;
+  }
+  .ov > div:last-child > .rp { margin-bottom: 0; }
+  /* Cap the Activity Feed (was 790px tall — the dominant cause of the
+     oversized .ov). Show ~5 items, scroll the rest. */
+  .ov .timeline-rp .timeline-list {
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  /* Weekend exposure card can also be long; cap it. */
+  .ov .rp.weekend-card { max-height: 320px; overflow-y: auto; }
 }
 
 /* Account currency summary cards: stop them collapsing too narrow and
