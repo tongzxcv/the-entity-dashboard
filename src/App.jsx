@@ -2255,6 +2255,141 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               ) : null}
             </div>
           </div>
+
+          <div className="sec" style={{ marginBottom:9 }}>
+            <div className="sec-h">
+              <div>
+                <div className="sec-lbl">Daily P&L Heatmap</div>
+                <div className="sec-title">Monthly trading calendar</div>
+              </div>
+              <div className="calendar-title">
+                <b>{calendarStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</b>
+                <span>Monthly P/L <em style={{ color:pclr(calendarMonthPnl) }}>{fmtS(calendarMonthPnl, calendarMoneyContext)}</em></span>
+              </div>
+            </div>
+            <div className="calendar-toolbar">
+              <button type="button" onClick={() => shiftCalendarMonth(-1)} aria-label="Previous month">&lt;</button>
+              <button type="button" onClick={resetCalendarMonth}>Today</button>
+              <button type="button" onClick={() => shiftCalendarMonth(1)} aria-label="Next month">&gt;</button>
+            </div>
+            <div className="monthly-calendar" role="grid" aria-label="Monthly daily profit and loss calendar">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Summary'].map((label) => (
+                <div className="calendar-head-cell" key={label}>{label}</div>
+              ))}
+              {calendarWeeks.map((week, weekIndex) => (
+                <React.Fragment key={`week-${weekIndex}`}>
+                  {week.map((day, dayIndex) => {
+                    const dayContext = day ? moneyContextForItems(day.rows) : null
+                    const dayNumber = day ? Number(day.date.slice(-2)) : ''
+                    return (
+                      <button
+                        key={`${weekIndex}-${dayIndex}`}
+                        type="button"
+                        className={cn(
+                          'calendar-day',
+                          !day && 'empty',
+                          day?.trades > 0 && Number(day.pnl || 0) >= 0 && 'positive',
+                          day?.trades > 0 && Number(day.pnl || 0) < 0 && 'negative',
+                          selectedHeatmapDate === day?.date && 'selected',
+                        )}
+                        style={calendarCellStyle(day)}
+                        disabled={!day}
+                        title={day?.trades > 0 ? `${day.date} ${fmtS(day.pnl, dayContext)} / ${day.trades} closed deals` : `${day?.date || ''} No closed deals`}
+                        onClick={() => day && setSelectedHeatmapDate(day.date)}
+                      >
+                        {day ? (
+                          <>
+                            <span className="calendar-date">{dayNumber}</span>
+                            {day.trades > 0 ? (
+                              <span className="calendar-day-body">
+                                <strong style={{ color:pclr(day.pnl) }}>{fmtS(day.pnl, dayContext)}</strong>
+                                <em data-short={day.trades}>{day.trades} deals</em>
+                              </span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                  <div className="calendar-week-summary">
+                    <span>Week {calendarWeekSummaries[weekIndex].week}</span>
+                    <b style={{ color:pclr(calendarWeekSummaries[weekIndex].pnl) }}>{fmtS(calendarWeekSummaries[weekIndex].pnl, calendarWeekSummaries[weekIndex].context)}</b>
+                    <em>{calendarWeekSummaries[weekIndex].trades} deals</em>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+            {selectedHeatmapDay ? (
+              <div className="heatmap-detail">
+                <div>
+                  <span>{selectedHeatmapDay.date}</span>
+                  <b style={{ color:pclr(selectedHeatmapDay.pnl) }}>{fmtS(selectedHeatmapDay.pnl, moneyContextForItems(selectedHeatmapDay.rows))}</b>
+                  <em>{selectedHeatmapDay.trades} closed deals / {selectedHeatmapDay.lots.toFixed(2)} lots</em>
+                </div>
+                <div className="heatmap-detail-list">
+                  {selectedHeatmapDay.rows.slice(0, 5).map((row) => (
+                    <div key={`${row.account_number}-${row.date}`}>
+                      <span>{row.name}</span>
+                      <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit, row)}</b>
+                      <em>{Number(row.daily_trades || 0)} closed deals</em>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="heatmap-detail muted">Select any calendar day to inspect account-level P&L.</div>
+            )}
+            <div className="hmst">
+              <div><div className="sl" style={{marginBottom:3}}>All-Time P&L</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color: totalPnl >= 0 ? C.grn : C.red}}>{fmtS(totalPnl, historyMoneyContext)}</div></div>
+              <div><div className="sl" style={{marginBottom:3}}>Best Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.grn}}>{fmtS(best, historyMoneyContext)}</div></div>
+              <div><div className="sl" style={{marginBottom:3}}>Worst Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.red}}>{fmtS(worst, historyMoneyContext)}</div></div>
+            </div>
+          </div>
+
+          <div className="sec">
+            <div className="sec-h">
+              <div>
+                <div className="sec-lbl">EA Performance Comparison</div>
+                <div className="sec-title">Top Portfolios</div>
+              </div>
+              <span className="chip ca">{rankings.length} ranked</span>
+            </div>
+            {rankings.length === 0 ? <EmptyState title="No ranking data available yet" /> : null}
+            {rankings.length > 0 ? (
+              <div className="perf-bars">
+                {rankings.slice(0, 8).map((p, idx) => {
+                  const positive = p.returnPct >= 0
+                  return (
+                    <div className="perf-row" key={`perf-${p.account.account_number}`}>
+                      <div className="perf-name"><span>{idx + 1}</span>{accountLabel(p.account)}</div>
+                      <div className="perf-track">
+                        <div
+                          className={`perf-fill ${positive ? 'positive' : 'negative'}`}
+                          style={{ width: `${Math.max(2, (Math.abs(p.returnPct) / maxReturn) * 100).toFixed(1)}%` }}
+                        />
+                      </div>
+                      <div className="perf-value" style={{ color: positive ? C.grn : C.red }}>{p.returnPct.toFixed(1)}%</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+            {rankings.slice(0, 5).map((p, idx) => (
+              <div className="pi" key={p.account.account_number}>
+                <div className={`rk r${idx+1 < 4 ? idx+1 : 4}`}>{idx+1}</div>
+                <div className="pif">
+                  <div className="pn">{accountLabel(p.account)}</div>
+                  <div className="pb">{p.account.broker || 'Unknown broker'}</div>
+                </div>
+                <div className="pst">
+                  <div className="ppct">{p.returnPct.toFixed(2)}%</div>
+                  <div className="pbar"><div className="pfill" style={{ width:`${Math.min(100, (p.returnPct/Math.max(1, rankings[0].returnPct))*100).toFixed(1)}%` }} /></div>
+                  <div className="ppnl">{fmtS(p.closedProfit)}</div>
+                  <div className="pwin">{p.winRate.toFixed(0)}% profitable account-days</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div>
@@ -2283,96 +2418,9 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
               </div>
             </>
           )}
-        </div>
-      </div>
-
-      <div className="sec" style={{ marginBottom:9 }}>
-        <div className="sec-h">
-          <div>
-            <div className="sec-lbl">Daily P&L Heatmap</div>
-            <div className="sec-title">Monthly trading calendar</div>
-          </div>
-          <div className="calendar-title">
-            <b>{calendarStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</b>
-            <span>Monthly P/L <em style={{ color:pclr(calendarMonthPnl) }}>{fmtS(calendarMonthPnl, calendarMoneyContext)}</em></span>
-          </div>
-        </div>
-        <div className="calendar-toolbar">
-          <button type="button" onClick={() => shiftCalendarMonth(-1)} aria-label="Previous month">&lt;</button>
-          <button type="button" onClick={resetCalendarMonth}>Today</button>
-          <button type="button" onClick={() => shiftCalendarMonth(1)} aria-label="Next month">&gt;</button>
-        </div>
-        <div className="monthly-calendar" role="grid" aria-label="Monthly daily profit and loss calendar">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Summary'].map((label) => (
-            <div className="calendar-head-cell" key={label}>{label}</div>
-          ))}
-          {calendarWeeks.map((week, weekIndex) => (
-            <React.Fragment key={`week-${weekIndex}`}>
-              {week.map((day, dayIndex) => {
-                const dayContext = day ? moneyContextForItems(day.rows) : null
-                const dayNumber = day ? Number(day.date.slice(-2)) : ''
-                return (
-                  <button
-                    key={`${weekIndex}-${dayIndex}`}
-                    type="button"
-                    className={cn(
-                      'calendar-day',
-                      !day && 'empty',
-                      day?.trades > 0 && Number(day.pnl || 0) >= 0 && 'positive',
-                      day?.trades > 0 && Number(day.pnl || 0) < 0 && 'negative',
-                      selectedHeatmapDate === day?.date && 'selected',
-                    )}
-                    style={calendarCellStyle(day)}
-                    disabled={!day}
-                    title={day?.trades > 0 ? `${day.date} ${fmtS(day.pnl, dayContext)} / ${day.trades} closed deals` : `${day?.date || ''} No closed deals`}
-                    onClick={() => day && setSelectedHeatmapDate(day.date)}
-                  >
-                    {day ? (
-                      <>
-                        <span className="calendar-date">{dayNumber}</span>
-                        {day.trades > 0 ? (
-                          <span className="calendar-day-body">
-                            <strong style={{ color:pclr(day.pnl) }}>{fmtS(day.pnl, dayContext)}</strong>
-                            <em data-short={day.trades}>{day.trades} deals</em>
-                          </span>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </button>
-                )
-              })}
-              <div className="calendar-week-summary">
-                <span>Week {calendarWeekSummaries[weekIndex].week}</span>
-                <b style={{ color:pclr(calendarWeekSummaries[weekIndex].pnl) }}>{fmtS(calendarWeekSummaries[weekIndex].pnl, calendarWeekSummaries[weekIndex].context)}</b>
-                <em>{calendarWeekSummaries[weekIndex].trades} deals</em>
-              </div>
-            </React.Fragment>
-          ))}
-        </div>
-        {selectedHeatmapDay ? (
-          <div className="heatmap-detail">
-            <div>
-              <span>{selectedHeatmapDay.date}</span>
-              <b style={{ color:pclr(selectedHeatmapDay.pnl) }}>{fmtS(selectedHeatmapDay.pnl, moneyContextForItems(selectedHeatmapDay.rows))}</b>
-              <em>{selectedHeatmapDay.trades} closed deals / {selectedHeatmapDay.lots.toFixed(2)} lots</em>
-            </div>
-            <div className="heatmap-detail-list">
-              {selectedHeatmapDay.rows.slice(0, 5).map((row) => (
-                <div key={`${row.account_number}-${row.date}`}>
-                  <span>{row.name}</span>
-                  <b style={{ color:pclr(row.daily_profit) }}>{fmtS(row.daily_profit, row)}</b>
-                  <em>{Number(row.daily_trades || 0)} closed deals</em>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="heatmap-detail muted">Select any calendar day to inspect account-level P&L.</div>
-        )}
-        <div className="hmst">
-          <div><div className="sl" style={{marginBottom:3}}>All-Time P&L</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color: totalPnl >= 0 ? C.grn : C.red}}>{fmtS(totalPnl, historyMoneyContext)}</div></div>
-          <div><div className="sl" style={{marginBottom:3}}>Best Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.grn}}>{fmtS(best, historyMoneyContext)}</div></div>
-          <div><div className="sl" style={{marginBottom:3}}>Worst Day</div><div style={{fontFamily:C.fn,fontSize:14,fontWeight:600,color:C.red}}>{fmtS(worst, historyMoneyContext)}</div></div>
+          <ActivityTimeline accounts={filteredAccounts} snapshots={snapshots} isAdmin={isAdmin} />
+          <WeekendExposureCard accounts={filteredAccounts} compact />
+          {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
         </div>
       </div>
 
@@ -2420,57 +2468,6 @@ function OverviewPage({ stats, summary, equitySeries, rankings, filteredAccounts
             </table>
           </div>
         )}
-      </div>
-
-      <div className="sec">
-        <div className="sec-h">
-          <div>
-            <div className="sec-lbl">EA Performance Comparison</div>
-            <div className="sec-title">Top Portfolios</div>
-          </div>
-          <span className="chip ca">{rankings.length} ranked</span>
-        </div>
-        {rankings.length === 0 ? <EmptyState title="No ranking data available yet" /> : null}
-        {rankings.length > 0 ? (
-          <div className="perf-bars">
-            {rankings.slice(0, 8).map((p, idx) => {
-              const positive = p.returnPct >= 0
-              return (
-                <div className="perf-row" key={`perf-${p.account.account_number}`}>
-                  <div className="perf-name"><span>{idx + 1}</span>{accountLabel(p.account)}</div>
-                  <div className="perf-track">
-                    <div
-                      className={`perf-fill ${positive ? 'positive' : 'negative'}`}
-                      style={{ width: `${Math.max(2, (Math.abs(p.returnPct) / maxReturn) * 100).toFixed(1)}%` }}
-                    />
-                  </div>
-                  <div className="perf-value" style={{ color: positive ? C.grn : C.red }}>{p.returnPct.toFixed(1)}%</div>
-                </div>
-              )
-            })}
-          </div>
-        ) : null}
-        {rankings.slice(0, 5).map((p, idx) => (
-          <div className="pi" key={p.account.account_number}>
-            <div className={`rk r${idx+1 < 4 ? idx+1 : 4}`}>{idx+1}</div>
-            <div className="pif">
-              <div className="pn">{accountLabel(p.account)}</div>
-              <div className="pb">{p.account.broker || 'Unknown broker'}</div>
-            </div>
-            <div className="pst">
-              <div className="ppct">{p.returnPct.toFixed(2)}%</div>
-              <div className="pbar"><div className="pfill" style={{ width:`${Math.min(100, (p.returnPct/Math.max(1, rankings[0].returnPct))*100).toFixed(1)}%` }} /></div>
-              <div className="ppnl">{fmtS(p.closedProfit)}</div>
-              <div className="pwin">{p.winRate.toFixed(0)}% profitable account-days</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="overview-rail-bottom">
-        <ActivityTimeline accounts={filteredAccounts} snapshots={snapshots} isAdmin={isAdmin} />
-        <WeekendExposureCard accounts={filteredAccounts} compact />
-        {rebateSummary.hasData && <RebateSummaryCard accounts={filteredAccounts} />}
       </div>
     </>
   )

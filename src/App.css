@@ -1957,17 +1957,16 @@ textarea,
    leaving ~1000px of whitespace under the chart. Now col1 spans full
    width on row 1, col2 cards tile across 3 columns on row 2. ── */
 @media (min-width: 901px) {
+  /* Two-column Overview: wide left (chart + calendar + Top Portfolios)
+     + narrow right rail (Data Freshness, Server Health, Activity Feed,
+     Weekend, Rebate). align-items:start so each column sizes to its own
+     content — the chart no longer stretches to match the rail's height. */
   .ov {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 9px;
-  }
-  /* Chart + perf-bars span full width on the first row. */
-  .ov > div:first-child {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: 9px;
+    grid-template-columns: minmax(0, 1fr) 300px;
     align-items: start;
+    gap: 9px;
   }
+  /* col1: chart section sizes to content; chart capped readable height. */
   .ov > div:first-child > .sec:first-child {
     display: flex;
     flex-direction: column;
@@ -1977,36 +1976,16 @@ textarea,
     min-height: 240px;
     max-height: 360px;
   }
-  /* Right-rail cards tile across 3 columns in the second row. */
-  .ov > div:last-child {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
-    align-items: start;
-  }
+  /* col2: rail cards stack vertically. Cap the long-form cards so the
+     column does not tower over col1 (Activity Feed was 790px uncapped). */
   .ov > div:last-child > .rp { margin-bottom: 0; }
-}
-
-/* Activity Feed / Weekend / Rebate moved to the bottom of Overview as a
-   3-column grid (out of the .ov rail, which now holds only the compact
-   Data Freshness + Server Health cards next to the chart). */
-.overview-rail-bottom {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 9px;
-  align-items: start;
-  margin-bottom: 9px;
-}
-.overview-rail-bottom > .rp,
-.overview-rail-bottom > .timeline-rp { margin-bottom: 0; }
-.overview-rail-bottom .timeline-list {
-  max-height: 320px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.overview-rail-bottom .rp.weekend-card { max-height: 360px; overflow-y: auto; }
-@media (max-width: 900px) {
-  .overview-rail-bottom { grid-template-columns: minmax(0, 1fr); }
+  .ov > div:last-child > .rp + .rp { margin-top: 9px; }
+  .ov > div:last-child .timeline-list {
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .ov > div:last-child .rp.weekend-card { max-height: 360px; overflow-y: auto; }
 }
 
 /* Account currency summary cards: stop them collapsing too narrow and
