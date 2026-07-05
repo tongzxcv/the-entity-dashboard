@@ -1314,6 +1314,40 @@ async def delete_agent_token(token_id: int, request: Request):
     return {"ok": True}
 
 
+@app.post("/api/admin/agent-tokens/{token_id}/rotate")
+async def rotate_agent_token(token_id: int, request: Request):
+    user = require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM ea_agent_tokens WHERE id = ?", (token_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Agent token not found")
+    # Rotate = atomic in-place replacement: generate a fresh raw token,
+    # hash it, store the new hash, and re-activate the record. The old
+    # hash is overwritten (it is unrecoverable anyway since we store only
+    # hashes). This keeps the record id/name, keeps EAs using the same
+    # logical agent connected after the new token is pasted into MT5, and
+    # avoids the non-atomic revoke+create window where EA would 401.
+    raw_token = f"ea_{secrets.token_urlsafe(32)}"
+    now = utc_now_iso()
+    cursor.execute(
+        "UPDATE ea_agent_tokens SET token_hash = ?, status = 'ACTIVE', revoked_at = '', last_used_at = '' WHERE id = ?",
+        (hash_secret(raw_token), token_id),
+    )
+    write_audit(
+        cursor,
+        request,
+        actor=user["username"],
+        actor_role=user["role"],
+        action="ROTATE_AGENT_TOKEN",
+        reason=f"rotated agent token: {row['name']}",
+        metadata={"token_id": token_id, "name": row["name"]},
+    )
+    conn.commit(); conn.close()
+    # Raw token returned exactly once — frontend shows the copy-once box.
+    return {"id": token_id, "name": row["name"], "token": raw_token, "created_at": now}
+
+
 @app.post("/api/admin/accounts")
 async def create_registry_account(payload: AccountRegistryPayload, request: Request):
     user = require_admin(request)

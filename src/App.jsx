@@ -4024,6 +4024,26 @@ function AgentTokensPanel() {
     }
   }
 
+  const rotateToken = async (token) => {
+    // Rotate = atomic in-place replacement. Old token stops working
+    // immediately; new raw token is returned once and shown in the
+    // copy-once box. Use when the old token may have leaked or was lost.
+    const confirmText = `Rotate token "${token.name}"?\n\nThe current token will stop working immediately and a NEW token will be issued. Copy the new token right away — it cannot be shown again.`
+    if (!window.confirm(confirmText)) return
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens/${token.id}/rotate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Rotate token API ${response.status}`)
+      setNewToken(result.token || '')
+      await loadTokens()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <Card className="sec">
       <CardHeader className="sec-h">
@@ -4042,9 +4062,9 @@ function AgentTokensPanel() {
         {newToken ? (
           <div className="registry-token-once">
             <div>
-              <div className="sec-lbl">Copy now</div>
+              <div className="sec-lbl">Copy this token now</div>
               <div className="tm registry-token-value">{newToken}</div>
-              <CardDescription>This raw token cannot be shown again after you leave this panel.</CardDescription>
+              <CardDescription>Copy this token now. It will not be shown again after you leave this panel.</CardDescription>
             </div>
             <Button type="button" variant="outline" onClick={() => copyToClipboard(newToken)}>{Ico.copy} Copy token</Button>
           </div>
@@ -4058,6 +4078,7 @@ function AgentTokensPanel() {
               </div>
               <div className="registry-actions">
                 <Badge className={`badge ${token.status === 'ACTIVE' ? 'blive' : 'bsell'}`}>{token.status}</Badge>
+                {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" onClick={() => rotateToken(token)}>{Ico.sync} Rotate</Button> : null}
                 {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => revokeToken(token)}>Revoke</Button> : null}
                 {token.status === 'REVOKED' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => deleteToken(token)}>{Ico.trash} Delete</Button> : null}
               </div>
