@@ -3957,6 +3957,7 @@ function AgentTokensPanel() {
   const [tokens, setTokens] = useState([])
   const [name, setName] = useState('MT5 EA Agent')
   const [newToken, setNewToken] = useState('')
+  const [tokenCopyState, setTokenCopyState] = useState('')
   const [error, setError] = useState('')
 
   const loadTokens = useCallback(async () => {
@@ -3984,7 +3985,9 @@ function AgentTokensPanel() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.detail || `Create token API ${response.status}`)
-      setNewToken(result.token || '')
+      const rawToken = result.token || ''
+      setNewToken(rawToken)
+      setTokenCopyState(rawToken && await copyToClipboard(rawToken) ? 'Copied to clipboard.' : 'Copy this token now.')
       await loadTokens()
     } catch (err) {
       setError(err.message)
@@ -4037,8 +4040,26 @@ function AgentTokensPanel() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.detail || `Rotate token API ${response.status}`)
-      setNewToken(result.token || '')
+      const rawToken = result.token || ''
+      setNewToken(rawToken)
+      setTokenCopyState(rawToken && await copyToClipboard(rawToken) ? 'New token copied to clipboard.' : 'Copy the new token now.')
       await loadTokens()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const copySavedToken = async (token) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/agent-tokens/${token.id}/copy`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Copy token API ${response.status}`)
+      const rawToken = result.token || ''
+      setNewToken(rawToken)
+      setTokenCopyState(rawToken && await copyToClipboard(rawToken) ? 'Token copied to clipboard.' : 'Copy failed. Select the token and copy manually.')
     } catch (err) {
       setError(err.message)
     }
@@ -4064,9 +4085,9 @@ function AgentTokensPanel() {
             <div>
               <div className="sec-lbl">Copy this token now</div>
               <div className="tm registry-token-value">{newToken}</div>
-              <CardDescription>Copy this token now. It will not be shown again after you leave this panel.</CardDescription>
+              <CardDescription>{tokenCopyState || 'Copy this token now.'} It will not be shown again after you leave this panel.</CardDescription>
             </div>
-            <Button type="button" variant="outline" onClick={() => copyToClipboard(newToken)}>{Ico.copy} Copy token</Button>
+            <Button type="button" variant="outline" onClick={async () => setTokenCopyState(await copyToClipboard(newToken) ? 'Copied to clipboard.' : 'Copy failed. Select the token and copy manually.')}>{Ico.copy} Copy token</Button>
           </div>
         ) : null}
         <div className="registry-token-list">
@@ -4078,6 +4099,7 @@ function AgentTokensPanel() {
               </div>
               <div className="registry-actions">
                 <Badge className={`badge ${token.status === 'ACTIVE' ? 'blive' : 'bsell'}`}>{token.status}</Badge>
+                {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" onClick={() => copySavedToken(token)}>{Ico.copy} Copy</Button> : null}
                 {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" onClick={() => rotateToken(token)}>{Ico.sync} Rotate</Button> : null}
                 {token.status === 'ACTIVE' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => revokeToken(token)}>Revoke</Button> : null}
                 {token.status === 'REVOKED' ? <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => deleteToken(token)}>{Ico.trash} Delete</Button> : null}
@@ -4166,6 +4188,10 @@ function AdminAccountsPage() {
       ? current.allowed_eas.filter((item) => item !== ea)
       : [...current.allowed_eas, ea],
   }))
+  const formEaOptions = useMemo(
+    () => Array.from(new Set([...ACCOUNT_GATE_EAS, ...form.allowed_eas])).filter(Boolean),
+    [form.allowed_eas],
+  )
   const addCustomEa = () => {
     const ea = customEa.trim()
     if (!ea) return
@@ -4298,7 +4324,7 @@ function AdminAccountsPage() {
             <Input placeholder="expiry_date YYYY-MM-DD" value={form.expiry_date} onChange={(event) => updateForm('expiry_date', event.target.value)} />
             <Input placeholder="reason" value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} />
             <div className="registry-ea-picks">
-              {ACCOUNT_GATE_EAS.map((ea) => (
+              {formEaOptions.map((ea) => (
                 <Button key={ea} type="button" variant={form.allowed_eas.includes(ea) ? 'default' : 'outline'} onClick={() => toggleEa(ea)}>{ea}</Button>
               ))}
               <div className="registry-custom-ea">

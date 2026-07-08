@@ -252,6 +252,41 @@ def hash_secret(value: str) -> str:
     return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
 
 
+def _token_stream(nonce: bytes, length: int) -> bytes:
+    output = bytearray()
+    counter = 0
+    while len(output) < length:
+        output.extend(hmac.new(AUTH_SECRET, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest())
+        counter += 1
+    return bytes(output[:length])
+
+
+def protect_agent_token(raw_token: str) -> str:
+    token_bytes = str(raw_token or "").encode("utf-8")
+    nonce = secrets.token_bytes(16)
+    stream = _token_stream(nonce, len(token_bytes))
+    cipher = bytes(a ^ b for a, b in zip(token_bytes, stream))
+    mac = hmac.new(AUTH_SECRET, nonce + cipher, hashlib.sha256).digest()
+    return "v1:" + _b64url(nonce) + ":" + _b64url(cipher) + ":" + _b64url(mac)
+
+
+def reveal_agent_token(token_cipher: str) -> str:
+    try:
+        version, nonce_raw, cipher_raw, mac_raw = str(token_cipher or "").split(":", 3)
+        if version != "v1":
+            return ""
+        nonce = _b64url_decode(nonce_raw)
+        cipher = _b64url_decode(cipher_raw)
+        mac = _b64url_decode(mac_raw)
+        expected = hmac.new(AUTH_SECRET, nonce + cipher, hashlib.sha256).digest()
+        if not hmac.compare_digest(mac, expected):
+            return ""
+        stream = _token_stream(nonce, len(cipher))
+        return bytes(a ^ b for a, b in zip(cipher, stream)).decode("utf-8")
+    except Exception:
+        return ""
+
+
 def hash_identifier(value: str) -> str:
     text = str(value or "").strip()
     if not text:
@@ -538,11 +573,14 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         token_hash TEXT NOT NULL UNIQUE,
+        token_cipher TEXT DEFAULT '',
         status TEXT NOT NULL DEFAULT 'ACTIVE',
         created_at TEXT NOT NULL,
         last_used_at TEXT DEFAULT ''
     )''')
     try: cursor.execute('ALTER TABLE ea_agent_tokens ADD COLUMN revoked_at TEXT DEFAULT ""')
+    except: pass
+    try: cursor.execute('ALTER TABLE ea_agent_tokens ADD COLUMN token_cipher TEXT DEFAULT ""')
     except: pass
     cursor.execute('''UPDATE account_registry
         SET status = CASE
@@ -558,9 +596,14 @@ def init_db():
     env_license_token = os.getenv("EA_LICENSE_API_TOKEN", "").strip()
     if env_license_token:
         cursor.execute(
-            '''INSERT OR IGNORE INTO ea_agent_tokens (name, token_hash, status, created_at)
-               VALUES (?, ?, 'ACTIVE', ?)''',
-            ("env-default", hash_secret(env_license_token), utc_now_iso())
+            '''INSERT OR IGNORE INTO ea_agent_tokens (name, token_hash, token_cipher, status, created_at)
+               VALUES (?, ?, ?, 'ACTIVE', ?)''',
+            ("env-default", hash_secret(env_license_token), protect_agent_token(env_license_token), utc_now_iso())
+        )
+        cursor.execute(
+            """UPDATE ea_agent_tokens SET token_cipher = ?
+               WHERE token_hash = ? AND COALESCE(token_cipher, '') = ''""",
+            (protect_agent_token(env_license_token), hash_secret(env_license_token))
         )
     conn.commit(); conn.close()
 
@@ -1232,10 +1275,15 @@ async def list_agent_tokens(request: Request):
     require_admin(request)
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     rows = cursor.execute(
-        "SELECT id, name, status, created_at, last_used_at FROM ea_agent_tokens ORDER BY created_at DESC, id DESC"
+        "SELECT id, name, status, created_at, last_used_at, token_cipher FROM ea_agent_tokens ORDER BY created_at DESC, id DESC"
     ).fetchall()
     conn.close()
-    return {"tokens": [dict(row) for row in rows]}
+    tokens = []
+    for row in rows:
+        item = dict(row)
+        item["can_copy"] = bool(item.pop("token_cipher", ""))
+        tokens.append(item)
+    return {"tokens": tokens}
 
 
 @app.post("/api/admin/agent-tokens")
@@ -1246,8 +1294,8 @@ async def create_agent_token(payload: AgentTokenPayload, request: Request):
     now = utc_now_iso()
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO ea_agent_tokens (name, token_hash, status, created_at) VALUES (?, ?, 'ACTIVE', ?)",
-        (name, hash_secret(raw_token), now),
+        "INSERT INTO ea_agent_tokens (name, token_hash, token_cipher, status, created_at) VALUES (?, ?, ?, 'ACTIVE', ?)",
+        (name, hash_secret(raw_token), protect_agent_token(raw_token), now),
     )
     token_id = cursor.lastrowid
     write_audit(
@@ -1261,6 +1309,31 @@ async def create_agent_token(payload: AgentTokenPayload, request: Request):
     )
     conn.commit(); conn.close()
     return {"id": token_id, "name": name, "token": raw_token, "created_at": now}
+
+
+@app.post("/api/admin/agent-tokens/{token_id}/copy")
+async def copy_agent_token(token_id: int, request: Request):
+    user = require_admin(request)
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM ea_agent_tokens WHERE id = ?", (token_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Agent token not found")
+    raw_token = reveal_agent_token(row["token_cipher"])
+    if not raw_token:
+        conn.close()
+        raise HTTPException(status_code=409, detail="This token was created before copy support and cannot be recovered from its hash.")
+    write_audit(
+        cursor,
+        request,
+        actor=user["username"],
+        actor_role=user["role"],
+        action="COPY_AGENT_TOKEN",
+        reason=f"copied agent token: {row['name']}",
+        metadata={"token_id": token_id, "name": row["name"]},
+    )
+    conn.commit(); conn.close()
+    return {"id": token_id, "name": row["name"], "token": raw_token}
 
 
 @app.post("/api/admin/agent-tokens/{token_id}/revoke")
@@ -1331,8 +1404,8 @@ async def rotate_agent_token(token_id: int, request: Request):
     raw_token = f"ea_{secrets.token_urlsafe(32)}"
     now = utc_now_iso()
     cursor.execute(
-        "UPDATE ea_agent_tokens SET token_hash = ?, status = 'ACTIVE', revoked_at = '', last_used_at = '' WHERE id = ?",
-        (hash_secret(raw_token), token_id),
+        "UPDATE ea_agent_tokens SET token_hash = ?, token_cipher = ?, status = 'ACTIVE', revoked_at = '', last_used_at = '' WHERE id = ?",
+        (hash_secret(raw_token), protect_agent_token(raw_token), token_id),
     )
     write_audit(
         cursor,

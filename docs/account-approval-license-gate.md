@@ -77,12 +77,13 @@ Important columns:
 - `POST /api/admin/accounts/import-csv`
 - `GET /api/admin/agent-tokens`
 - `POST /api/admin/agent-tokens`
+- `POST /api/admin/agent-tokens/{token_id}/copy`
 - `POST /api/admin/agent-tokens/{token_id}/revoke`
 
 All admin endpoints require the existing admin session cookie.
 Deleting a registry account requires typing the account login and removes it from License Gate approval only; it does not delete MT5 portfolio history or trade data.
 The admin create form supports preset EA chips plus a free-text custom EA name for new packages.
-The token UI shows a newly created raw agent token once. After that, only hashed tokens are stored and the admin can revoke them, not reveal them again.
+The token UI can copy tokens created after token-copy support was added. Older hash-only tokens cannot be recovered from the database and must be replaced if the raw value was lost.
 
 ## EA License Check API
 
@@ -168,8 +169,8 @@ The request also creates an `account_registry` row with `status=PAUSED`, heartbe
 
 - Tokens are accepted via `Authorization: Bearer` or `X-EA-Token`.
 - Tokens are hashed with SHA-256 before storage/lookup.
-- New agent tokens are returned to the admin UI once at creation time only.
-- No stored token value is returned to UI or written to audit metadata.
+- New agent tokens store a hash for lookup and a server-protected copy for admin-only copy/reveal.
+- Raw tokens are returned only to authenticated admins and are not written to audit metadata.
 - Basic per-IP/token rate limiting is applied to license checks.
 - Status transitions require an admin session and a reason.
 - Audit rows include actor, role, IP, user agent, old status, new status, reason, and metadata.
@@ -227,7 +228,7 @@ Implemented:
 - Additive SQLite migration/schema.
 - Auto-registration of unknown EA accounts as `PAUSED` pending admin approval.
 - Admin Account Registry UI.
-- Admin Agent Token UI with one-time raw token display and revoke action.
+- Admin Agent Token UI with create, copy, rotate, revoke, and delete actions.
 - Admin Audit Log UI.
 - License check API with bearer token, rate limit, status decisions, heartbeat fields, and audit events.
 - Dashboard account enrichment with `approval_status`.

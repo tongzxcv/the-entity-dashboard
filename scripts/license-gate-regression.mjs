@@ -13,6 +13,7 @@ const backend = read('backend/main.py')
 const app = read('src/App.jsx')
 const docs = read('docs/account-approval-license-gate.md')
 const prototype = read('docs/lab/SteadyFlow_LicenseGate_Module.mqh')
+const forbiddenAdminPassword = ['N603', 'k5392T'].join('')
 
 check(
   'license check endpoint exists',
@@ -31,7 +32,11 @@ check(
   'admin agent token endpoints exist',
   backend.includes('@app.get("/api/admin/agent-tokens")') &&
     backend.includes('@app.post("/api/admin/agent-tokens")') &&
+    backend.includes('@app.post("/api/admin/agent-tokens/{token_id}/copy")') &&
     backend.includes('@app.post("/api/admin/agent-tokens/{token_id}/revoke")') &&
+    backend.includes('protect_agent_token') &&
+    backend.includes('reveal_agent_token') &&
+    backend.includes('COPY_AGENT_TOKEN') &&
     backend.includes('secrets.token_urlsafe') &&
     backend.includes('REVOKE_AGENT_TOKEN'),
 )
@@ -79,6 +84,7 @@ check(
     app.includes('custom EA name') &&
     app.includes('Delete registry account') &&
     app.includes('Agent Tokens') &&
+    app.includes('copySavedToken') &&
     app.includes('License Check History') &&
     app.includes('Type ${deleteTarget.account_login} to confirm') &&
     app.includes('openHistory(account)') &&
@@ -95,10 +101,10 @@ check(
 )
 check(
   'lab prototype is opt-in and has no real token',
-  prototype.includes('InpUseWebLicenseGate = false') &&
+    prototype.includes('InpUseWebLicenseGate = false') &&
     prototype.includes('InpEaLicenseToken = ""') &&
     prototype.includes('<dashboard-host>') &&
-    !prototype.includes('N603k5392T') &&
+    !prototype.includes(forbiddenAdminPassword) &&
     !prototype.includes('EA_LICENSE_API_TOKEN'),
 )
 
