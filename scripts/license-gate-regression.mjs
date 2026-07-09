@@ -94,8 +94,11 @@ check(
     app.includes('IB Accounts') &&
     app.includes('custom EA name') &&
     app.includes('CUSTOM_EA_STORAGE_KEY') &&
+    app.includes('HIDDEN_DEFAULT_EA_STORAGE_KEY') &&
     app.includes('loadCustomEaNames') &&
+    app.includes('loadHiddenDefaultEaNames') &&
     app.includes('saveCustomEaNames(next)') &&
+    app.includes('saveHiddenDefaultEaNames(next)') &&
     app.includes('removeCustomEa') &&
     app.includes('registry-ea-remove') &&
     app.includes('Delete registry account') &&
