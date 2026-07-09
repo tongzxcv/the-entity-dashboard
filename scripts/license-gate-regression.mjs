@@ -93,6 +93,9 @@ check(
     app.includes('function AuditLogPage') &&
     app.includes('IB Accounts') &&
     app.includes('custom EA name') &&
+    app.includes('CUSTOM_EA_STORAGE_KEY') &&
+    app.includes('loadCustomEaNames') &&
+    app.includes('saveCustomEaNames(next)') &&
     app.includes('Delete registry account') &&
     app.includes('Agent Tokens') &&
     app.includes('copySavedToken') &&

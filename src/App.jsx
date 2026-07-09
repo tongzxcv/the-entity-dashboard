@@ -3892,6 +3892,23 @@ function LogsPage({ sysData, accounts = [], lastUpdate = null }) {
 const ACCOUNT_GATE_STATUSES = ['APPROVED', 'PAUSED', 'BLOCKED']
 const ACCOUNT_GATE_STATUS_LABELS = { APPROVED: 'Approve', PAUSED: 'Pause', BLOCKED: 'Block' }
 const ACCOUNT_GATE_EAS = ['SteadyFlow', 'JANUS', 'Hybrid']
+const CUSTOM_EA_STORAGE_KEY = 'the_entity_custom_eas'
+
+function loadCustomEaNames() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_EA_STORAGE_KEY) || '[]').filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function saveCustomEaNames(names) {
+  try {
+    localStorage.setItem(CUSTOM_EA_STORAGE_KEY, JSON.stringify(names))
+  } catch {
+    // Browser storage can be blocked; the current form still keeps the value for this session.
+  }
+}
 
 function statusBadgeClass(status) {
   if (status === 'APPROVED') return 'blive'
@@ -4157,6 +4174,7 @@ function AdminAccountsPage() {
   const [historyTarget, setHistoryTarget] = useState(null)
   const [historyRows, setHistoryRows] = useState([])
   const [customEa, setCustomEa] = useState('')
+  const [customEaNames, setCustomEaNames] = useState(loadCustomEaNames)
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importDefaultExpiry, setImportDefaultExpiry] = useState('')
@@ -4196,10 +4214,10 @@ function AdminAccountsPage() {
   }, [accounts])
 
   const eaFilterOptions = useMemo(() => {
-    const names = new Set(ACCOUNT_GATE_EAS)
+    const names = new Set([...ACCOUNT_GATE_EAS, ...customEaNames])
     accounts.forEach((account) => (account.allowed_eas || []).forEach((ea) => names.add(ea)))
     return [{ value: 'all', label: 'All EAs' }, ...Array.from(names).sort().map((ea) => ({ value: ea, label: ea }))]
-  }, [accounts])
+  }, [accounts, customEaNames])
 
   const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const toggleEa = (ea) => setForm((current) => ({
@@ -4209,12 +4227,17 @@ function AdminAccountsPage() {
       : [...current.allowed_eas, ea],
   }))
   const formEaOptions = useMemo(
-    () => Array.from(new Set([...ACCOUNT_GATE_EAS, ...form.allowed_eas])).filter(Boolean),
-    [form.allowed_eas],
+    () => Array.from(new Set([...ACCOUNT_GATE_EAS, ...customEaNames, ...form.allowed_eas])).filter(Boolean),
+    [customEaNames, form.allowed_eas],
   )
   const addCustomEa = () => {
     const ea = customEa.trim()
     if (!ea) return
+    setCustomEaNames((current) => {
+      const next = current.includes(ea) ? current : [...current, ea]
+      saveCustomEaNames(next)
+      return next
+    })
     setForm((current) => ({
       ...current,
       allowed_eas: current.allowed_eas.includes(ea) ? current.allowed_eas : [...current.allowed_eas, ea],
