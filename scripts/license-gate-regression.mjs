@@ -13,7 +13,8 @@ const backend = read('backend/main.py')
 const app = read('src/App.jsx')
 const docs = read('docs/account-approval-license-gate.md')
 const prototype = read('docs/lab/SteadyFlow_LicenseGate_Module.mqh')
-const forbiddenAdminPassword = ['N603', 'k5392T'].join('')
+const forbiddenAdminPassword = process.env.QA_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || ''
+const prototypeHasNoAdminPassword = !forbiddenAdminPassword || !prototype.includes(forbiddenAdminPassword)
 
 check(
   'license check endpoint exists',
@@ -24,6 +25,7 @@ check(
     backend.includes('@app.get("/api/admin/accounts")') &&
     backend.includes('@app.post("/api/admin/accounts")') &&
     backend.includes('@app.delete("/api/admin/accounts/{account_id}")') &&
+    backend.includes('@app.post("/api/admin/accounts/bulk-status")') &&
     backend.includes('@app.post("/api/admin/accounts/{account_id}/status")') &&
     backend.includes('@app.get("/api/admin/accounts/{account_id}/audit")') &&
     backend.includes('@app.post("/api/admin/accounts/import-csv")'),
@@ -95,6 +97,9 @@ check(
     app.includes('Agent Tokens') &&
     app.includes('copySavedToken') &&
     app.includes('License Check History') &&
+    app.includes('selectedAccounts') &&
+    app.includes('Apply to selected') &&
+    app.includes('default_expiry_date') &&
     app.includes('Type ${deleteTarget.account_login} to confirm') &&
     app.includes('openHistory(account)') &&
     app.includes('Audit Log') &&
@@ -113,7 +118,7 @@ check(
     prototype.includes('InpUseWebLicenseGate = false') &&
     prototype.includes('InpEaLicenseToken = ""') &&
     prototype.includes('<dashboard-host>') &&
-    !prototype.includes(forbiddenAdminPassword) &&
+    prototypeHasNoAdminPassword &&
     !prototype.includes('EA_LICENSE_API_TOKEN'),
 )
 

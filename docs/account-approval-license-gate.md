@@ -193,8 +193,8 @@ The request also creates an `account_registry` row with `status=PAUSED`, heartbe
 Run this after deploying the license gate or changing Account Registry behavior:
 
 ```powershell
-$env:QA_ADMIN_PASSWORD="<admin password>"
-$env:EA_LICENSE_API_TOKEN="<agent token>"
+[Environment]::SetEnvironmentVariable("QA_ADMIN_PASSWORD", "<admin password>", "Process")
+[Environment]::SetEnvironmentVariable("EA_LICENSE_API_TOKEN", "<agent token>", "Process")
 npm run qa:license-gate-production
 ```
 
@@ -222,6 +222,8 @@ broker_name,status,allowed_eas,symbol,account_type,ib_group,referral_tag,owner_n
 
 `allowed_eas` may be a comma list or JSON list.
 
+The import dialog can apply a `default_expiry_date` to rows that do not provide their own `expiry_date`. Row-level `expiry_date` always wins.
+
 ## EA Behavior Design
 
 - `OnInit`: call license check once. If unavailable, start in paused-new-entries mode unless a valid last-known approval exists.
@@ -239,11 +241,12 @@ Implemented:
 - Additive SQLite migration/schema.
 - Auto-registration of unknown EA accounts as `PAUSED` pending admin approval.
 - Admin Account Registry UI.
+- Bulk Approve/Pause/Block selected accounts with one reason.
 - Admin Agent Token UI with create, copy, rotate, revoke, and delete actions.
 - Admin Audit Log UI.
 - License check API with bearer token, rate limit, status decisions, heartbeat fields, and audit events.
 - Dashboard account enrichment with `approval_status`.
-- CSV import report.
+- CSV import report with optional default expiry.
 - Lab MQL5 module documentation/prototype.
 
 Not live yet:

@@ -1102,6 +1102,33 @@ button:disabled{cursor:progress;opacity:0.72}
 .registry-toolbar > * {
   min-width: 0;
 }
+.registry-bulk-toolbar,
+.registry-import-expiry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.registry-bulk-toolbar input[type="text"] {
+  min-width: min(320px, 100%);
+  flex: 1 1 260px;
+}
+.registry-checkline,
+.registry-mobile-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.registry-checkline {
+  color: #A8BDCF;
+  font-size: 12px;
+}
+.registry-checkline input,
+.registry-mobile-select input,
+td input[type="checkbox"] {
+  accent-color: #35d8cb;
+}
 .registry-token-form {
   display: flex;
   flex-wrap: wrap;

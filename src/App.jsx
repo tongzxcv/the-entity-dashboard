@@ -4159,7 +4159,11 @@ function AdminAccountsPage() {
   const [customEa, setCustomEa] = useState('')
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
+  const [importDefaultExpiry, setImportDefaultExpiry] = useState('')
   const [importReport, setImportReport] = useState([])
+  const [selectedAccounts, setSelectedAccounts] = useState([])
+  const [bulkStatus, setBulkStatus] = useState('APPROVED')
+  const [bulkReason, setBulkReason] = useState('bulk approved by admin')
 
   const loadAccounts = useCallback(async () => {
     setLoading(true)
@@ -4185,6 +4189,11 @@ function AdminAccountsPage() {
   }, [filters.status, filters.broker, filters.server, filters.ea, filters.risk_profile, filters.search])
 
   useEffect(() => { loadAccounts() }, [loadAccounts])
+
+  useEffect(() => {
+    const visibleIds = new Set(accounts.map((account) => account.id))
+    setSelectedAccounts((current) => current.filter((id) => visibleIds.has(id)))
+  }, [accounts])
 
   const eaFilterOptions = useMemo(() => {
     const names = new Set(ACCOUNT_GATE_EAS)
@@ -4321,11 +4330,37 @@ function AdminAccountsPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv_text: importText }),
+        body: JSON.stringify({ csv_text: importText, default_expiry_date: importDefaultExpiry }),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.detail || `Import API ${response.status}`)
       setImportReport(result.report || [])
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const toggleSelectedAccount = (accountId) => {
+    setSelectedAccounts((current) => current.includes(accountId) ? current.filter((id) => id !== accountId) : [...current, accountId])
+  }
+
+  const toggleAllVisibleAccounts = () => {
+    setSelectedAccounts((current) => current.length === accounts.length ? [] : accounts.map((account) => account.id))
+  }
+
+  const changeBulkStatus = async (event) => {
+    event.preventDefault()
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/bulk-status`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_ids: selectedAccounts, status: bulkStatus, reason: bulkReason }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Bulk status API ${response.status}`)
+      setSelectedAccounts([])
       await loadAccounts()
     } catch (err) {
       setError(err.message)
@@ -4386,6 +4421,15 @@ function AdminAccountsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <form className="registry-bulk-toolbar" onSubmit={changeBulkStatus}>
+            <label className="registry-checkline">
+              <input type="checkbox" checked={accounts.length > 0 && selectedAccounts.length === accounts.length} onChange={toggleAllVisibleAccounts} />
+              <span>{selectedAccounts.length ? `${selectedAccounts.length} selected` : 'Select visible accounts'}</span>
+            </label>
+            <DashboardSelect value={bulkStatus} onValueChange={setBulkStatus} options={ACCOUNT_GATE_STATUSES.map((status) => ({ value: status, label: status }))} />
+            <Input placeholder="Bulk reason" value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} />
+            <Button type="submit" disabled={!selectedAccounts.length}>Apply to selected</Button>
+          </form>
           <DataTableShell
             kicker="IB Accounts"
             title={loading ? 'Loading registry...' : `${accounts.length} accounts`}
@@ -4393,6 +4437,7 @@ function AdminAccountsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Select</TableHead>
                     <TableHead>Account</TableHead>
                     <TableHead>Broker / Server</TableHead>
                     <TableHead>EA / Version</TableHead>
@@ -4405,6 +4450,9 @@ function AdminAccountsPage() {
                 <TableBody>
                   {accounts.map((account) => (
                     <TableRow key={account.id}>
+                      <TableCell>
+                        <input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleSelectedAccount(account.id)} aria-label={`Select ${account.account_login}`} />
+                      </TableCell>
                       <TableCell><div className="tn">{account.account_login}</div><div className="ts">{account.owner_name || account.note || 'No owner note'}</div></TableCell>
                       <TableCell><div>{account.broker_name || '-'}</div><div className="tm">{account.broker_server}</div></TableCell>
                       <TableCell><div>{(account.allowed_eas || []).join(', ') || 'Any EA'}</div><div className="tm">{account.allowed_version || 'Any version'}</div></TableCell>
@@ -4431,7 +4479,10 @@ function AdminAccountsPage() {
                 {accounts.map((account) => (
                   <Card className="responsive-row-card" key={account.id}>
                     <div className="responsive-row-head">
-                      <div><div className="responsive-row-title">{account.account_login}</div><div className="responsive-row-sub">{account.broker_server}</div></div>
+                      <div className="registry-mobile-select">
+                        <input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleSelectedAccount(account.id)} aria-label={`Select ${account.account_login}`} />
+                        <div><div className="responsive-row-title">{account.account_login}</div><div className="responsive-row-sub">{account.broker_server}</div></div>
+                      </div>
                       <Badge className={`badge ${statusBadgeClass(account.status)}`}>{account.status}</Badge>
                     </div>
                     <CardContent className="responsive-row-body p-0">
@@ -4523,6 +4574,12 @@ function AdminAccountsPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Import account registry CSV</DialogTitle><DialogDescription>Required columns: account_login, broker_server. Optional: broker_name, status, allowed_eas, symbol, account_type.</DialogDescription></DialogHeader>
           <form onSubmit={importAccounts} className="dialog-form">
+            <div className="registry-import-expiry">
+              <Input type="date" value={importDefaultExpiry} onChange={(event) => setImportDefaultExpiry(event.target.value)} />
+              <Button type="button" variant="outline" onClick={() => setImportDefaultExpiry(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))}>Default +7d</Button>
+              <Button type="button" variant="outline" onClick={() => setImportDefaultExpiry(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))}>Default +30d</Button>
+              <Button type="button" variant="outline" onClick={() => setImportDefaultExpiry('')}>No default expiry</Button>
+            </div>
             <textarea className="registry-textarea" value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="account_login,broker_server,broker_name,status,allowed_eas" rows={8} />
             {importReport.length ? <div className="import-report">{importReport.slice(0, 8).map((row, index) => <div key={index}>{row.row}: {row.status} {row.reason || row.account_login || ''}</div>)}</div> : null}
             <DialogFooter><Button type="button" variant="outline" onClick={() => setImportOpen(false)}>Close</Button><Button type="submit">Import</Button></DialogFooter>

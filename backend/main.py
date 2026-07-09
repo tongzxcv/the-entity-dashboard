@@ -142,8 +142,15 @@ class AccountStatusChange(BaseModel):
     reason: str
 
 
+class BulkAccountStatusChange(BaseModel):
+    account_ids: list[int]
+    status: str
+    reason: str
+
+
 class ImportAccountsPayload(BaseModel):
     csv_text: str
+    default_expiry_date: str = ""
 
 
 class AgentTokenPayload(BaseModel):
@@ -1602,6 +1609,42 @@ async def get_account_audit(account_id: int, request: Request):
     return {"audit": [normalize_audit_row(row) for row in rows]}
 
 
+@app.post("/api/admin/accounts/bulk-status")
+async def change_registry_status_bulk(payload: BulkAccountStatusChange, request: Request):
+    user = require_admin(request)
+    account_ids = sorted({int(item) for item in payload.account_ids if int(item) > 0})
+    if not account_ids:
+        raise HTTPException(status_code=400, detail="Select at least one account")
+    if len(account_ids) > 500:
+        raise HTTPException(status_code=400, detail="Bulk status is limited to 500 accounts")
+    new_status = normalize_status(payload.status)
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=400, detail="Reason is required")
+    now = utc_now_iso()
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+    updated = []
+    missing = []
+    for account_id in account_ids:
+        existing = cursor.execute("SELECT * FROM account_registry WHERE id = ?", (account_id,)).fetchone()
+        if not existing:
+            missing.append(account_id)
+            continue
+        updates = {"status": new_status, "reason": reason, "updated_at": now}
+        if new_status == "APPROVED":
+            updates["approved_by"] = user["username"]
+            updates["approved_at"] = now
+        if new_status == "BLOCKED":
+            updates["suspended_by"] = user["username"]
+            updates["suspended_at"] = now
+        set_clause = ", ".join(f"{key} = ?" for key in updates.keys())
+        cursor.execute(f"UPDATE account_registry SET {set_clause} WHERE id = ?", (*updates.values(), account_id))
+        write_audit(cursor, request, account_id=account_id, account_login=existing["account_login"], broker_server=existing["broker_server"], actor=user["username"], actor_role=user["role"], action="BULK_STATUS_CHANGE", old_status=existing["status"], new_status=new_status, reason=reason)
+        updated.append(account_id)
+    conn.commit(); conn.close()
+    return {"ok": True, "updated": len(updated), "missing_ids": missing}
+
+
 @app.get("/api/admin/audit-log")
 async def get_audit_log(request: Request, limit: int = 300):
     require_admin(request)
@@ -1621,6 +1664,7 @@ async def import_registry_accounts(payload: ImportAccountsPayload, request: Requ
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
     report = []
     now = utc_now_iso()
+    default_expiry_date = clean_expiry_date(payload.default_expiry_date)
     for index, row in enumerate(reader, start=2):
         account_login = str(row.get("account_login") or row.get("login") or row.get("account") or "").strip()
         broker_server = str(row.get("broker_server") or row.get("server") or "").strip()
@@ -1629,6 +1673,7 @@ async def import_registry_accounts(payload: ImportAccountsPayload, request: Requ
             continue
         status = normalize_status(row.get("status") or "PAUSED")
         allowed_eas = json_list(row.get("allowed_eas") or row.get("ea"))
+        expiry_date = clean_expiry_date(row.get("expiry_date") or default_expiry_date)
         try:
             cursor.execute(
                 """INSERT INTO account_registry
@@ -1653,7 +1698,7 @@ async def import_registry_accounts(payload: ImportAccountsPayload, request: Requ
                     str(row.get("risk_profile") or "").strip(),
                     status,
                     str(row.get("reason") or "CSV import").strip(),
-                    str(row.get("expiry_date") or "").strip(),
+                    expiry_date,
                     now,
                     now,
                 ),
