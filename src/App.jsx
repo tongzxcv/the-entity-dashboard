@@ -3900,6 +3900,15 @@ function statusBadgeClass(status) {
   return 'bmuted'
 }
 
+function expiryText(account) {
+  if (!account?.expiry_date) return 'No expiry'
+  const days = account.expiry_days_left
+  if (typeof days !== 'number') return account.expiry_date
+  if (days < 0) return `${account.expiry_date} (expired)`
+  if (days === 0) return `${account.expiry_date} (today)`
+  return `${account.expiry_date} (${days}d left)`
+}
+
 function AuditLogTable({ rows = [] }) {
   if (!rows.length) return <div className="empty-card">No audit events yet.</div>
   return (
@@ -4140,6 +4149,8 @@ function AdminAccountsPage() {
   const [form, setForm] = useState(initialForm)
   const [statusTarget, setStatusTarget] = useState(null)
   const [statusReason, setStatusReason] = useState('')
+  const [expiryTarget, setExpiryTarget] = useState(null)
+  const [expiryDate, setExpiryDate] = useState('')
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deletingRegistry, setDeletingRegistry] = useState(false)
@@ -4239,6 +4250,31 @@ function AdminAccountsPage() {
       if (!response.ok) throw new Error(result.detail || `Status API ${response.status}`)
       setStatusTarget(null)
       setStatusReason('')
+      await loadAccounts()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const openExpiryDialog = (account) => {
+    setExpiryTarget(account)
+    setExpiryDate(account.expiry_date || '')
+  }
+
+  const saveExpiry = async (event) => {
+    event.preventDefault()
+    if (!expiryTarget) return
+    try {
+      const response = await fetch(`${API_URL}/api/admin/accounts/${expiryTarget.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiry_date: expiryDate }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.detail || `Expiry API ${response.status}`)
+      setExpiryTarget(null)
+      setExpiryDate('')
       await loadAccounts()
     } catch (err) {
       setError(err.message)
@@ -4361,6 +4397,7 @@ function AdminAccountsPage() {
                     <TableHead>Broker / Server</TableHead>
                     <TableHead>EA / Version</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Expiry</TableHead>
                     <TableHead>Last check</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -4372,12 +4409,14 @@ function AdminAccountsPage() {
                       <TableCell><div>{account.broker_name || '-'}</div><div className="tm">{account.broker_server}</div></TableCell>
                       <TableCell><div>{(account.allowed_eas || []).join(', ') || 'Any EA'}</div><div className="tm">{account.allowed_version || 'Any version'}</div></TableCell>
                       <TableCell><Badge className={`badge ${statusBadgeClass(account.status)}`}>{account.status}</Badge></TableCell>
+                      <TableCell><div className="tm">{expiryText(account)}</div></TableCell>
                       <TableCell className="tm">{account.last_license_check_at || 'Never'}</TableCell>
                       <TableCell>
                         <div className="registry-actions">
                           {ACCOUNT_GATE_STATUSES.map((status) => (
                             <Button key={status} type="button" size="sm" variant={status === account.status ? 'default' : 'outline'} onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>
                           ))}
+                          <Button type="button" size="sm" variant="outline" onClick={() => openExpiryDialog(account)}>Expiry</Button>
                           <Button type="button" size="sm" variant="outline" onClick={() => openHistory(account)}>{Ico.eye} History</Button>
                           <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => { setDeleteConfirm(''); setDeleteTarget(account) }}>{Ico.trash} Delete</Button>
                         </div>
@@ -4397,9 +4436,11 @@ function AdminAccountsPage() {
                     </div>
                     <CardContent className="responsive-row-body p-0">
                       <div><span>EA</span><b>{(account.allowed_eas || []).join(', ') || 'Any'}</b></div>
+                      <div><span>Expiry</span><b>{expiryText(account)}</b></div>
                       <div><span>Last check</span><b>{account.last_license_check_at || 'Never'}</b></div>
                       <div className="registry-actions mobile">
                         {ACCOUNT_GATE_STATUSES.map((status) => <Button key={status} type="button" size="sm" variant="outline" onClick={() => openStatusDialog(account, status)}>{ACCOUNT_GATE_STATUS_LABELS[status] || status}</Button>)}
+                        <Button type="button" size="sm" variant="outline" onClick={() => openExpiryDialog(account)}>Expiry</Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => openHistory(account)}>{Ico.eye} History</Button>
                         <Button type="button" size="sm" variant="outline" className="b-danger" onClick={() => { setDeleteConfirm(''); setDeleteTarget(account) }}>{Ico.trash} Delete</Button>
                       </div>
@@ -4423,6 +4464,27 @@ function AdminAccountsPage() {
           <form onSubmit={changeStatus} className="dialog-form">
             <Input value={statusReason} onChange={(event) => setStatusReason(event.target.value)} placeholder="Reason is required" required />
             <DialogFooter><Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>Cancel</Button><Button type="submit">Save status</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(expiryTarget)} onOpenChange={(open) => { if (!open) { setExpiryTarget(null); setExpiryDate('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set trial expiry</DialogTitle>
+            <DialogDescription>{expiryTarget ? `${expiryTarget.account_login} / ${expiryTarget.broker_server}` : ''}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveExpiry} className="dialog-form">
+            <Input type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
+            <div className="registry-actions">
+              <Button type="button" variant="outline" onClick={() => setExpiryDate(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))}>+7 days</Button>
+              <Button type="button" variant="outline" onClick={() => setExpiryDate(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))}>+30 days</Button>
+              <Button type="button" variant="outline" onClick={() => setExpiryDate('')}>No expiry</Button>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setExpiryTarget(null); setExpiryDate('') }}>Cancel</Button>
+              <Button type="submit">Save expiry</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

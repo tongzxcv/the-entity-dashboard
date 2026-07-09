@@ -335,7 +335,24 @@ def registry_row_to_dict(row) -> dict:
     item["allowed_eas"] = json_list(item.get("allowed_eas"))
     item["license_check_count"] = int(item.get("license_check_count") or 0)
     item["license_reject_count"] = int(item.get("license_reject_count") or 0)
+    expiry = str(item.get("expiry_date") or "").strip()
+    item["expiry_days_left"] = None
+    if expiry:
+        try:
+            item["expiry_days_left"] = (datetime.strptime(expiry, "%Y-%m-%d").date() - datetime.now(timezone.utc).date()).days
+        except ValueError:
+            item["expiry_days_left"] = None
     return item
+
+
+def clean_expiry_date(value: str | None) -> str:
+    expiry = str(value or "").strip()
+    if expiry:
+        try:
+            datetime.strptime(expiry, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="expiry_date must be YYYY-MM-DD")
+    return expiry
 
 
 def write_audit(cursor, request: Request, *, account_id=None, account_login="", broker_server="", actor="system", actor_role="system", action="", old_status=None, new_status=None, reason="", metadata=None):
@@ -1049,15 +1066,21 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
             "allow_close_existing": True,
             "message": "account auto-registered and waiting for admin approval",
             "check_interval_seconds": 30,
+            "expiry_date": "",
+            "expiry_days_left": None,
         }
 
     now = datetime.now(timezone.utc).date()
     status = normalize_status(registry.get("status"))
     expiry = str(registry.get("expiry_date") or "").strip()
+    expiry_days_left = None
+    expired = False
     if expiry:
         try:
-            if datetime.strptime(expiry, "%Y-%m-%d").date() < now:
+            expiry_days_left = (datetime.strptime(expiry, "%Y-%m-%d").date() - now).days
+            if expiry_days_left < 0:
                 status = "BLOCKED"
+                expired = True
         except ValueError:
             pass
 
@@ -1091,6 +1114,8 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
         "BLOCKED": (False, True, True, 30, f"account blocked by admin: {registry.get('reason') or 'no reason provided'}"),
     }
     allow_new, allow_manage, allow_close, interval, message = decisions.get(status, decisions["BLOCKED"])
+    if expired:
+        message = f"trial expired on {expiry}"
     return {
         "status": status,
         "allow_new_entries": allow_new,
@@ -1098,6 +1123,8 @@ def build_license_decision(registry: dict | None, payload: LicenseCheckRequest) 
         "allow_close_existing": allow_close,
         "message": message,
         "check_interval_seconds": interval,
+        "expiry_date": expiry,
+        "expiry_days_left": expiry_days_left,
     }
 
 
@@ -1427,6 +1454,7 @@ async def create_registry_account(payload: AccountRegistryPayload, request: Requ
     status = normalize_status(payload.status)
     account_login = payload.account_login.strip()
     broker_server = payload.broker_server.strip()
+    expiry_date = clean_expiry_date(payload.expiry_date)
     if not account_login or not broker_server:
         raise HTTPException(status_code=400, detail="account_login and broker_server are required")
     now = utc_now_iso()
@@ -1459,7 +1487,7 @@ async def create_registry_account(payload: AccountRegistryPayload, request: Requ
                 now if status == "APPROVED" else "",
                 user["username"] if status == "BLOCKED" else "",
                 now if status == "BLOCKED" else "",
-                payload.expiry_date.strip(),
+                expiry_date,
                 now,
                 now,
             ),
@@ -1486,7 +1514,10 @@ async def update_registry_account(account_id: int, payload: AccountRegistryUpdat
     for key in allowed_fields:
         value = getattr(payload, key)
         if value is not None:
-            changes[key] = json.dumps(value) if key == "allowed_eas" else str(value).strip()
+            if key == "expiry_date":
+                changes[key] = clean_expiry_date(value)
+            else:
+                changes[key] = json.dumps(value) if key == "allowed_eas" else str(value).strip()
     if not changes:
         raise HTTPException(status_code=400, detail="No changes provided")
     conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row; cursor = conn.cursor()

@@ -47,6 +47,15 @@ check(
     backend.includes('Type the account login to confirm deletion'),
 )
 check(
+  'trial expiry is web-managed and returned to EA',
+  backend.includes('expiry_days_left') &&
+    backend.includes('trial expired on') &&
+    backend.includes('clean_expiry_date') &&
+    app.includes('Set trial expiry') &&
+    app.includes('Save expiry') &&
+    app.includes('expiryText(account)'),
+)
+check(
   'license tokens are hashed and not logged',
   backend.includes('hash_secret') &&
     backend.includes('EA_LICENSE_API_TOKEN') &&

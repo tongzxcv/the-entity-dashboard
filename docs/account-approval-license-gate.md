@@ -84,6 +84,7 @@ All admin endpoints require the existing admin session cookie.
 Deleting a registry account requires typing the account login and removes it from License Gate approval only; it does not delete MT5 portfolio history or trade data.
 The admin create form supports preset EA chips plus a free-text custom EA name for new packages.
 The token UI can copy tokens created after token-copy support was added. Older hash-only tokens cannot be recovered from the database and must be replaced if the raw value was lost.
+Trial expiry is managed per account through the `expiry_date` field. Leave it blank for no expiry, or set a `YYYY-MM-DD` date from the account row `Expiry` action.
 
 ## EA License Check API
 
@@ -120,7 +121,9 @@ Approved response:
   "allow_manage_existing": true,
   "allow_close_existing": true,
   "message": "approved",
-  "check_interval_seconds": 60
+  "check_interval_seconds": 60,
+  "expiry_date": "2026-08-01",
+  "expiry_days_left": 23
 }
 ```
 
@@ -133,7 +136,9 @@ Paused response:
   "allow_manage_existing": true,
   "allow_close_existing": true,
   "message": "account paused by admin: reason...",
-  "check_interval_seconds": 30
+  "check_interval_seconds": 30,
+  "expiry_date": "2026-08-01",
+  "expiry_days_left": 23
 }
 ```
 
@@ -146,9 +151,13 @@ Blocked response:
   "allow_manage_existing": true,
   "allow_close_existing": true,
   "message": "account blocked by admin: reason...",
-  "check_interval_seconds": 30
+  "check_interval_seconds": 30,
+  "expiry_date": "2026-07-01",
+  "expiry_days_left": -8
 }
 ```
+
+If an approved account is past `expiry_date`, the API returns `BLOCKED` with `message: "trial expired on YYYY-MM-DD"`. It still allows manage/close existing positions and blocks only new entries.
 
 First check from an unknown account:
 
@@ -159,7 +168,9 @@ First check from an unknown account:
   "allow_manage_existing": true,
   "allow_close_existing": true,
   "message": "account paused by admin: auto-registered; pending admin approval",
-  "check_interval_seconds": 30
+  "check_interval_seconds": 30,
+  "expiry_date": "",
+  "expiry_days_left": null
 }
 ```
 
