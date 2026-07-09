@@ -4244,6 +4244,14 @@ function AdminAccountsPage() {
     }))
     setCustomEa('')
   }
+  const removeCustomEa = (ea) => {
+    setCustomEaNames((current) => {
+      const next = current.filter((item) => item !== ea)
+      saveCustomEaNames(next)
+      return next
+    })
+    setForm((current) => ({ ...current, allowed_eas: current.allowed_eas.filter((item) => item !== ea) }))
+  }
 
   const createAccount = async (event) => {
     event.preventDefault()
@@ -4419,7 +4427,12 @@ function AdminAccountsPage() {
             <Input placeholder="reason" value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} />
             <div className="registry-ea-picks">
               {formEaOptions.map((ea) => (
-                <Button key={ea} type="button" variant={form.allowed_eas.includes(ea) ? 'default' : 'outline'} onClick={() => toggleEa(ea)}>{ea}</Button>
+                <span className="registry-ea-chip" key={ea}>
+                  <Button type="button" variant={form.allowed_eas.includes(ea) ? 'default' : 'outline'} onClick={() => toggleEa(ea)}>{ea}</Button>
+                  {customEaNames.includes(ea) ? (
+                    <Button type="button" size="icon" variant="ghost" className="registry-ea-remove" aria-label={`Remove ${ea}`} onClick={() => removeCustomEa(ea)}>×</Button>
+                  ) : null}
+                </span>
               ))}
               <div className="registry-custom-ea">
                 <Input placeholder="custom EA name" value={customEa} onChange={(event) => setCustomEa(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomEa() } }} />

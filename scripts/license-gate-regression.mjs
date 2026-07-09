@@ -96,6 +96,8 @@ check(
     app.includes('CUSTOM_EA_STORAGE_KEY') &&
     app.includes('loadCustomEaNames') &&
     app.includes('saveCustomEaNames(next)') &&
+    app.includes('removeCustomEa') &&
+    app.includes('registry-ea-remove') &&
     app.includes('Delete registry account') &&
     app.includes('Agent Tokens') &&
     app.includes('copySavedToken') &&

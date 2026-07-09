@@ -1084,6 +1084,15 @@ button:disabled{cursor:progress;opacity:0.72}
   gap: 8px;
   grid-column: span 3;
 }
+.registry-ea-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.registry-ea-remove {
+  width: 28px;
+  height: 28px;
+}
 .registry-custom-ea {
   display: flex;
   gap: 8px;
