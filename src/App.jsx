@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import './App.css'
+import './theme.css'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 const INGEST_ENDPOINT = `${window.location.origin}/api/mt5/update`
@@ -29,15 +30,15 @@ import EmptyState from '@/components/EmptyState'
 // (chart stroke, KPI tint, badge, svg) matches the CSS-themed dashboard.
 // Change here → all ~86 inline C.* call sites follow automatically.
 const C = {
-  bg0:"#060a14", bg1:"#0a1020", bg2:"#0f1828", bg3:"#131d31", bg4:"#1a2540",
-  br0:"rgba(120,144,182,0.18)", br1:"rgba(120,144,182,0.24)", br2:"rgba(120,144,182,0.32)",
-  acc:"#38bdf8", accD:"rgba(56,189,248,0.11)", accG:"rgba(56,189,248,0.20)",
-  grn:"#34d399", grnD:"rgba(52,211,153,0.12)",
-  red:"#f87171", redD:"rgba(248,113,113,0.12)",
-  blu:"#60a5fa", yel:"#f59e0b",
-  t1:"#eef3fb", t2:"#aebcd6", t3:"#7d8eac",
+  bg0:"#f2f0eb", bg1:"#e9edf0", bg2:"#ffffff", bg3:"#f7f8f8", bg4:"#e1e7eb",
+  br0:"rgba(24,33,42,0.10)", br1:"rgba(24,33,42,0.16)", br2:"rgba(24,33,42,0.24)",
+  acc:"#3167d5", accD:"rgba(49,103,213,0.10)", accG:"rgba(49,103,213,0.18)",
+  grn:"#168766", grnD:"rgba(22,135,102,0.10)",
+  red:"#c94f5f", redD:"rgba(201,79,95,0.10)",
+  blu:"#3978c5", yel:"#b97916",
+  t1:"#17212b", t2:"#526270", t3:"#75838e",
   fn:"'JetBrains Mono',monospace",
-  fh:"'Chakra Petch',sans-serif",
+  fh:"'Outfit',sans-serif",
   fb:"'Outfit',sans-serif",
 }
 
