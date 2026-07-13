@@ -30,27 +30,27 @@
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   --radius: 0.625rem;
-  --background: #f2f0eb;
-  --foreground: #17212b;
-  --card: #ffffff;
-  --card-foreground: #17212b;
-  --popover: #ffffff;
-  --popover-foreground: #17212b;
-  --primary: #3167d5;
-  --primary-foreground: #ffffff;
-  --secondary: #e7ebee;
-  --secondary-foreground: #283743;
-  --muted: #edf0f2;
-  --muted-foreground: #667681;
-  --accent: #dce7fb;
-  --accent-foreground: #214b9d;
-  --destructive: #c94f5f;
+  --background: #0b0e11;
+  --foreground: #e6edf3;
+  --card: #151a20;
+  --card-foreground: #e6edf3;
+  --popover: #171d23;
+  --popover-foreground: #e6edf3;
+  --primary: #53a7ff;
+  --primary-foreground: #07111b;
+  --secondary: #1b222a;
+  --secondary-foreground: #c8d1da;
+  --muted: #181e25;
+  --muted-foreground: #8b98a5;
+  --accent: #1c2a38;
+  --accent-foreground: #8ac4ff;
+  --destructive: #f05a67;
   --destructive-foreground: #ffffff;
-  --border: #d7dde1;
-  --input: #ffffff;
-  --ring: #3167d5;
+  --border: #2a3139;
+  --input: #11161b;
+  --ring: #53a7ff;
 }
 
 * {
@@ -61,18 +61,18 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background: #f2f0eb;
-  color: #17212b;
+  background: #0b0e11;
+  color: #e6edf3;
   line-height: 1.6;
 }
 
 a {
-  color: #3167d5;
+  color: #53a7ff;
   text-decoration: none;
 }
 
 a:hover {
-  color: #214b9d;
+  color: #8ac4ff;
 }
 
 button {
@@ -87,14 +87,14 @@ button {
 }
 
 ::-webkit-scrollbar-track {
-  background: #e3e7ea;
+  background: #0d1115;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #aab5bd;
+  background: #39434d;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #87949d;
+  background: #53606c;
 }

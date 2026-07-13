@@ -30,13 +30,13 @@ import EmptyState from '@/components/EmptyState'
 // (chart stroke, KPI tint, badge, svg) matches the CSS-themed dashboard.
 // Change here → all ~86 inline C.* call sites follow automatically.
 const C = {
-  bg0:"#f2f0eb", bg1:"#e9edf0", bg2:"#ffffff", bg3:"#f7f8f8", bg4:"#e1e7eb",
-  br0:"rgba(24,33,42,0.10)", br1:"rgba(24,33,42,0.16)", br2:"rgba(24,33,42,0.24)",
-  acc:"#3167d5", accD:"rgba(49,103,213,0.10)", accG:"rgba(49,103,213,0.18)",
-  grn:"#168766", grnD:"rgba(22,135,102,0.10)",
-  red:"#c94f5f", redD:"rgba(201,79,95,0.10)",
-  blu:"#3978c5", yel:"#b97916",
-  t1:"#17212b", t2:"#526270", t3:"#75838e",
+  bg0:"#0b0e11", bg1:"#101419", bg2:"#151a20", bg3:"#11161b", bg4:"#1b222a",
+  br0:"rgba(216,226,236,0.10)", br1:"rgba(216,226,236,0.16)", br2:"rgba(216,226,236,0.24)",
+  acc:"#53a7ff", accD:"rgba(83,167,255,0.10)", accG:"rgba(83,167,255,0.18)",
+  grn:"#4ac26b", grnD:"rgba(74,194,107,0.11)",
+  red:"#f05a67", redD:"rgba(240,90,103,0.11)",
+  blu:"#53a7ff", yel:"#f2b84b",
+  t1:"#e6edf3", t2:"#a6b2bd", t3:"#7f8b96",
   fn:"'JetBrains Mono',monospace",
   fh:"'Outfit',sans-serif",
   fb:"'Outfit',sans-serif",
