@@ -2531,12 +2531,15 @@ function MiniPnlBars({ points, balance = 0 }) {
   const shortPercent = (value) => {
     const percent = percentOfBalance(value)
     if (percent === null) return '--'
-    const decimals = Math.abs(percent) >= 100 ? 0 : 1
-    return `${percent >= 0 ? '+' : ''}${percent.toFixed(decimals)}%`
+    const absolute = Math.abs(percent)
+    const sign = percent >= 0 ? '+' : '-'
+    if (absolute >= 1000000) return `${sign}${(absolute / 1000000).toFixed(1)}m%`
+    if (absolute >= 1000) return `${sign}${(absolute / 1000).toFixed(1)}k%`
+    if (absolute >= 100) return `${sign}${absolute.toFixed(0)}%`
+    return `${sign}${absolute.toFixed(1)}%`
   }
   const activePoint = activeIndex === null ? null : points[activeIndex]
   const activeValue = Number(activePoint?.value || 0)
-  const activePercent = percentOfBalance(activeValue)
   const activeX = activeIndex === null ? 0 : activeIndex * slot + slot / 2
   const tooltipWidth = 156
   const tooltipX = Math.max(2, Math.min(width - tooltipWidth - 2, activeX - tooltipWidth / 2))
@@ -2603,7 +2606,7 @@ function MiniPnlBars({ points, balance = 0 }) {
           <rect x={tooltipX} y="2" width={tooltipWidth} height="48" rx="7" />
           <text className="mini-tooltip-title" x={tooltipX + 10} y="17">{activePoint.key || activePoint.label}</text>
           <text className={activeValue >= 0 ? 'mini-tooltip-value positive' : 'mini-tooltip-value negative'} x={tooltipX + 10} y="32">
-            {activePercent === null ? '--' : `${activePercent >= 0 ? '+' : ''}${activePercent.toFixed(2)}%`}
+            {shortPercent(activeValue)}
           </text>
           <text className="mini-tooltip-money" x={tooltipX + tooltipWidth - 10} y="32" textAnchor="end">{fmtS(activeValue)}</text>
           <text className="mini-tooltip-note" x={tooltipX + 10} y="43">% of current balance</text>
